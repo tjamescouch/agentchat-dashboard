@@ -253,6 +253,24 @@ function Sidebar({ state, dispatch }) {
     return (a.nick || a.id).localeCompare(b.nick || b.id);
   });
 
+  // Find duplicate nicks to show disambiguator
+  const nickCounts = {};
+  agents.forEach(a => {
+    const nick = a.nick || a.id;
+    nickCounts[nick] = (nickCounts[nick] || 0) + 1;
+  });
+
+  // Helper to get display name with disambiguator if needed
+  const getDisplayName = (agent) => {
+    const nick = agent.nick || agent.id;
+    if (nickCounts[nick] > 1) {
+      // Show shortened ID to distinguish duplicates
+      const shortId = agent.id.replace('@', '').slice(0, 6);
+      return `${nick} (${shortId})`;
+    }
+    return nick;
+  };
+
   const channels = Object.values(state.channels);
 
   return (
@@ -268,7 +286,7 @@ function Sidebar({ state, dispatch }) {
             >
               <span className={`dot ${agent.online ? 'online' : 'offline'}`} />
               <span className="nick" style={{ color: agentColor(agent.nick || agent.id) }}>
-                {agent.nick || agent.id}
+                {getDisplayName(agent)}
               </span>
             </div>
           ))}
