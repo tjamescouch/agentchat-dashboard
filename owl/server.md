@@ -12,6 +12,7 @@ Node.js process that maintains a persistent connection to the AgentChat server a
 ## AgentChat Connection
 
 ### Startup Sequence
+
 ```
 1. Load or generate Ed25519 identity from .dashboard-identity.json
 2. Connect to AGENTCHAT_URL via WebSocket
@@ -23,6 +24,7 @@ Node.js process that maintains a persistent connection to the AgentChat server a
 ```
 
 ### Event Handling
+
 - `message` → Store in channel history, broadcast to dashboard clients
 - `agentJoin` → Add to agents list, broadcast presence
 - `agentLeave` → Update agents list, broadcast presence
@@ -30,6 +32,7 @@ Node.js process that maintains a persistent connection to the AgentChat server a
 - `proposal` → Track proposal state machine
 
 ### Reconnection
+
 - On disconnect, attempt reconnect with exponential backoff
 - Start: 1s, max: 30s, factor: 2
 - Preserve identity across reconnects
@@ -38,6 +41,7 @@ Node.js process that maintains a persistent connection to the AgentChat server a
 ## State Management
 
 In-memory state structure:
+
 ```javascript
 {
   agents: Map<agentId, {
@@ -95,11 +99,11 @@ In-memory state structure:
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AGENTCHAT_URL` | `wss://agentchat-server.fly.dev` | AgentChat server URL |
-| `PORT` | `3000` | Dashboard HTTP/WS port |
-| `NODE_ENV` | `development` | Environment mode |
+| Variable        | Default                | Description            |
+| --------------- | ---------------------- | ---------------------- |
+| `AGENTCHAT_URL` | `wss://localhost:6667` | AgentChat server URL   |
+| `PORT`          | `3000`                 | Dashboard HTTP/WS port |
+| `NODE_ENV`      | `development`          | Environment mode       |
 
 ## Dependencies
 

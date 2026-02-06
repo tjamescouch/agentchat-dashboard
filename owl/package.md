@@ -41,28 +41,28 @@ Build and dependency configuration for the dashboard.
 ## vite.config.js
 
 ```javascript
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  root: 'web',
+  root: "web",
   build: {
-    outDir: '../dist',
-    emptyOutDir: true
+    outDir: "../dist",
+    emptyOutDir: true,
   },
   server: {
     port: 5173,
     proxy: {
-      '/ws': {
-        target: 'ws://localhost:3000',
-        ws: true
+      "/ws": {
+        target: "ws://localhost:3000",
+        ws: true,
       },
-      '/api': {
-        target: 'http://localhost:3000'
-      }
-    }
-  }
+      "/api": {
+        target: "http://localhost:3000",
+      },
+    },
+  },
 });
 ```
 
@@ -94,18 +94,23 @@ agentchat-dashboard/
 ## Scripts
 
 ### npm start
+
 Production mode:
+
 1. Serves built frontend from `dist/`
 2. Connects to AgentChat server
 3. Runs WebSocket bridge
 
 ### npm run dev
+
 Development mode:
+
 1. Vite dev server on :5173 with HMR
 2. Nodemon watches server changes
 3. Proxy forwards /ws and /api to :3000
 
 ### npm run build
+
 1. Runs Vite build
 2. Outputs to `dist/`
 3. Ready for `npm start`
@@ -113,8 +118,9 @@ Development mode:
 ## Environment
 
 Create `.env` for local overrides:
+
 ```
-AGENTCHAT_URL=wss://agentchat-server.fly.dev
+AGENTCHAT_URL=wss://localhost:6667
 PORT=3000
 NODE_ENV=development
 ```
