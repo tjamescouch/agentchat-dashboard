@@ -211,6 +211,7 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
+  position: relative;
 }
 
 .feed-header {
@@ -586,6 +587,116 @@ body {
 
 .channel-tag:hover {
   background: var(--bg-primary);
+}
+
+/* Jump to bottom */
+.jump-to-bottom {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 12px;
+  z-index: 10;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.jump-to-bottom:hover {
+  background: var(--bg-primary);
+  border-color: var(--text-primary);
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+}
+
+/* Skills search */
+.skills-search {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  border-radius: 4px;
+  outline: none;
+  margin-bottom: 12px;
+}
+
+.skills-search:focus {
+  border-color: var(--text-primary);
+}
+
+.skills-search::placeholder {
+  color: var(--text-muted);
+}
+
+/* Agent detail ELO */
+.detail-elo {
+  margin-bottom: 12px;
+}
+
+.detail-elo .label {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-right: 8px;
+}
+
+.detail-elo .elo-value {
+  color: var(--accent-yellow);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+/* Agent detail proposals */
+.detail-proposals {
+  margin-top: 12px;
+}
+
+.detail-proposals .label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.detail-proposal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  margin-bottom: 4px;
+  border-left: 2px solid var(--border);
+}
+
+.detail-proposal.status-pending {
+  border-left-color: var(--accent-yellow);
+}
+
+.detail-proposal.status-accepted {
+  border-left-color: var(--accent-blue);
+}
+
+.detail-proposal.status-completed {
+  border-left-color: var(--text-primary);
+}
+
+.detail-proposal.status-disputed {
+  border-left-color: var(--accent-red);
+}
+
+.proposal-task-summary {
+  font-size: 11px;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Scrollbar */

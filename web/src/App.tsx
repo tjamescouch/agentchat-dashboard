@@ -437,14 +437,36 @@ function MessageFeed({ state, send }: { state: DashboardState; send: WsSendFn })
   const [input, setInput] = useState('');
   const [hideServer, setHideServer] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const allMessages = state.messages[state.selectedChannel] || [];
   const messages = hideServer
     ? allMessages.filter(m => m.from !== '@server')
     : allMessages;
 
+  const handleScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+    setIsAtBottom(atBottom);
+  };
+
   useEffect(() => {
+    if (isAtBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isAtBottom]);
+
+  // Reset to bottom when switching channels
+  useEffect(() => {
+    setIsAtBottom(true);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, [state.selectedChannel]);
+
+  const jumpToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    setIsAtBottom(true);
+  };
 
   const handleSend = (e: FormEvent) => {
     e.preventDefault();
@@ -466,7 +488,7 @@ function MessageFeed({ state, send }: { state: DashboardState; send: WsSendFn })
           Hide @server
         </label>
       </div>
-      <div className="messages">
+      <div className="messages" ref={messagesContainerRef} onScroll={handleScroll}>
         {messages.map((msg, i) => (
           <div key={msg.id || i} className="message">
             <span className="time">[{formatTime(msg.ts)}]</span>
@@ -478,6 +500,11 @@ function MessageFeed({ state, send }: { state: DashboardState; send: WsSendFn })
         ))}
         <div ref={messagesEndRef} />
       </div>
+      {!isAtBottom && (
+        <button className="jump-to-bottom" onClick={jumpToBottom}>
+          Jump to bottom
+        </button>
+      )}
       <form className="input-bar" onSubmit={handleSend}>
         <input
           type="text"
@@ -495,6 +522,7 @@ function MessageFeed({ state, send }: { state: DashboardState; send: WsSendFn })
 function RightPanel({ state, dispatch, send }: { state: DashboardState; dispatch: React.Dispatch<DashboardAction>; send: WsSendFn }) {
   const [renameValue, setRenameValue] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
+  const [skillsFilter, setSkillsFilter] = useState('');
 
   if (state.rightPanel === 'leaderboard') {
     return (
@@ -517,11 +545,23 @@ function RightPanel({ state, dispatch, send }: { state: DashboardState; dispatch
   }
 
   if (state.rightPanel === 'skills') {
+    const filteredSkills = state.skills.filter(s =>
+      !skillsFilter ||
+      s.capability.toLowerCase().includes(skillsFilter.toLowerCase()) ||
+      (s.description && s.description.toLowerCase().includes(skillsFilter.toLowerCase()))
+    );
     return (
       <div className="right-panel">
         <h3>SKILLS MARKETPLACE</h3>
+        <input
+          type="text"
+          className="skills-search"
+          value={skillsFilter}
+          onChange={(e) => setSkillsFilter(e.target.value)}
+          placeholder="Filter by capability..."
+        />
         <div className="skills">
-          {state.skills.map((skill, i) => (
+          {filteredSkills.map((skill, i) => (
             <div key={i} className="skill-entry">
               <div className="skill-header">
                 <span className="capability">{skill.capability}</span>
@@ -531,7 +571,7 @@ function RightPanel({ state, dispatch, send }: { state: DashboardState; dispatch
               <div className="skill-desc">{skill.description}</div>
             </div>
           ))}
-          {state.skills.length === 0 && <div className="empty">No skills registered</div>}
+          {filteredSkills.length === 0 && <div className="empty">{skillsFilter ? 'No matching skills' : 'No skills registered'}</div>}
         </div>
       </div>
     );
@@ -591,6 +631,11 @@ function RightPanel({ state, dispatch, send }: { state: DashboardState; dispatch
     }
   };
 
+  const agentElo = state.leaderboard.find(e => e.id === agent.id);
+  const agentProposals = Object.values(state.proposals).filter(
+    p => p.from === agent.id || p.to === agent.id
+  );
+
   return (
     <div className="right-panel">
       <h3>AGENT DETAIL</h3>
@@ -621,6 +666,12 @@ function RightPanel({ state, dispatch, send }: { state: DashboardState; dispatch
         <div className={`detail-status ${agent.online ? 'online' : 'offline'}`}>
           {agent.online ? 'Online' : 'Offline'}
         </div>
+        {agentElo && (
+          <div className="detail-elo">
+            <span className="label">ELO:</span>
+            <span className="elo-value">{agentElo.elo}</span>
+          </div>
+        )}
         {agent.channels && agent.channels.length > 0 && (
           <div className="detail-channels">
             <span className="label">Channels:</span>
@@ -632,6 +683,17 @@ function RightPanel({ state, dispatch, send }: { state: DashboardState; dispatch
               >
                 {ch}
               </span>
+            ))}
+          </div>
+        )}
+        {agentProposals.length > 0 && (
+          <div className="detail-proposals">
+            <span className="label">Proposals:</span>
+            {agentProposals.slice(0, 5).map(p => (
+              <div key={p.id} className={`detail-proposal status-${p.status}`}>
+                <span className={`status-badge ${p.status}`}>{p.status}</span>
+                <span className="proposal-task-summary">{p.task.length > 40 ? p.task.slice(0, 40) + '...' : p.task}</span>
+              </div>
             ))}
           </div>
         )}
