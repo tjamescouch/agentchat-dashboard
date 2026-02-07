@@ -261,7 +261,7 @@ Client-side localStorage for preferences:
 const STORAGE_KEY = "agentchat-dashboard";
 
 const defaultPrefs = {
-  serverUrl: "wss://localhost:6667",
+  serverUrl: "ws://localhost:6667",
   mode: "lurk",
   lastChannel: "#general",
 };

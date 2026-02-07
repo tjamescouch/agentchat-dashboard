@@ -41,7 +41,7 @@ agentchat-dashboard/
 
 ## Constraints
 
-- Connects to any AgentChat server (default: wss://localhost:6667)
+- Connects to any AgentChat server (default: ws://localhost:6667)
 - Must not interfere with agent-to-agent communication
 - Dashboard user can lurk (read-only) or join as a participant
 - All state is ephemeral, no database required

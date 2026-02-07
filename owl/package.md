@@ -120,7 +120,7 @@ Development mode:
 Create `.env` for local overrides:
 
 ```
-AGENTCHAT_URL=wss://localhost:6667
+AGENTCHAT_URL=ws://localhost:6667
 PORT=3000
 NODE_ENV=development
 ```

@@ -41,7 +41,7 @@ Opens Vite dev server at http://localhost:5173 with hot reload.
 
 | Environment Variable | Default                | Description                    |
 | -------------------- | ---------------------- | ------------------------------ |
-| `AGENTCHAT_URL`      | `wss://localhost:6667` | AgentChat server to connect to |
+| `AGENTCHAT_URL`      | `ws://localhost:6667` | AgentChat server to connect to |
 | `PORT`               | `3000`                 | Dashboard port                 |
 
 ## Architecture

@@ -1,27 +1,134 @@
-import { useState, useEffect, useRef, useReducer, createContext, useContext } from 'react';
+import { useState, useEffect, useRef, useReducer, createContext, FormEvent } from 'react';
 
-// Context
-const DashboardContext = createContext();
+// ============ Types ============
 
-// Load persisted mode from localStorage
+interface Agent {
+  id: string;
+  nick: string;
+  channels: string[];
+  lastSeen: number;
+  online: boolean;
+  presence?: string;
+  event?: string;
+}
+
+interface Channel {
+  name: string;
+  members: string[];
+  messageCount: number;
+  agentCount?: number;
+}
+
+interface Message {
+  id: string;
+  from: string;
+  fromNick: string;
+  to: string;
+  content: string;
+  ts: number;
+  isProposal: boolean;
+}
+
+interface Proposal {
+  id: string;
+  from: string;
+  to: string;
+  task: string;
+  amount?: number;
+  currency?: string;
+  status: string;
+  eloStake?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface Skill {
+  capability: string;
+  rate?: number;
+  currency?: string;
+  agentId: string;
+  description?: string;
+}
+
+interface LeaderboardEntry {
+  id: string;
+  nick?: string;
+  elo: number;
+}
+
+interface DashboardAgent {
+  id: string | null;
+  nick: string;
+}
+
+interface DashboardState {
+  connected: boolean;
+  mode: string;
+  agents: Record<string, Agent>;
+  channels: Record<string, Channel>;
+  messages: Record<string, Message[]>;
+  leaderboard: LeaderboardEntry[];
+  skills: Skill[];
+  proposals: Record<string, Proposal>;
+  selectedChannel: string;
+  selectedAgent: Agent | null;
+  rightPanel: string;
+  dashboardAgent: DashboardAgent | null;
+}
+
+type DashboardAction =
+  | { type: 'STATE_SYNC'; data: StateSyncPayload }
+  | { type: 'CONNECTED'; data?: { dashboardAgent?: DashboardAgent } }
+  | { type: 'DISCONNECTED' }
+  | { type: 'MESSAGE'; data: Message }
+  | { type: 'AGENT_UPDATE'; data: Agent }
+  | { type: 'PROPOSAL_UPDATE'; data: Proposal }
+  | { type: 'LEADERBOARD_UPDATE'; data: LeaderboardEntry[] }
+  | { type: 'SKILLS_UPDATE'; data: Skill[] }
+  | { type: 'SET_MODE'; mode: string }
+  | { type: 'SELECT_CHANNEL'; channel: string }
+  | { type: 'SELECT_AGENT'; agent: Agent }
+  | { type: 'SET_RIGHT_PANEL'; panel: string };
+
+interface StateSyncPayload {
+  agents: Agent[];
+  channels: Channel[];
+  messages: Record<string, Message[]>;
+  leaderboard: LeaderboardEntry[];
+  skills: Skill[];
+  proposals: Proposal[];
+  dashboardAgent: DashboardAgent;
+}
+
+type WsSendFn = (msg: Record<string, unknown>) => void;
+
+// ============ Context ============
+
+interface DashboardContextValue {
+  state: DashboardState;
+  dispatch: React.Dispatch<DashboardAction>;
+  send: WsSendFn;
+}
+
+const DashboardContext = createContext<DashboardContextValue | null>(null);
+
+// ============ Persistence ============
+
 const savedMode = typeof window !== 'undefined' ? localStorage.getItem('dashboardMode') || 'lurk' : 'lurk';
 
-// Load persisted messages from localStorage
-const loadPersistedMessages = () => {
+const loadPersistedMessages = (): Record<string, Message[]> => {
   try {
     const saved = localStorage.getItem('dashboardMessages');
     return saved ? JSON.parse(saved) : {};
   } catch { return {}; }
 };
 
-// Save messages to localStorage (debounced)
-let saveTimeout = null;
-const persistMessages = (messages) => {
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+const persistMessages = (messages: Record<string, Message[]>) => {
   if (saveTimeout) clearTimeout(saveTimeout);
   saveTimeout = setTimeout(() => {
     try {
-      // Only keep last 100 messages per channel to avoid storage limits
-      const trimmed = {};
+      const trimmed: Record<string, Message[]> = {};
       for (const [ch, msgs] of Object.entries(messages)) {
         trimmed[ch] = msgs.slice(-100);
       }
@@ -30,7 +137,9 @@ const persistMessages = (messages) => {
   }, 1000);
 };
 
-const initialState = {
+// ============ Reducer ============
+
+const initialState: DashboardState = {
   connected: false,
   mode: savedMode,
   agents: {},
@@ -45,12 +154,11 @@ const initialState = {
   dashboardAgent: null
 };
 
-function reducer(state, action) {
+function reducer(state: DashboardState, action: DashboardAction): DashboardState {
   switch (action.type) {
     case 'STATE_SYNC': {
-      // Merge server messages with locally persisted messages
       const serverMsgs = action.data.messages || {};
-      const mergedMessages = { ...state.messages };
+      const mergedMessages: Record<string, Message[]> = { ...state.messages };
 
       for (const [channel, msgs] of Object.entries(serverMsgs)) {
         const existing = mergedMessages[channel] || [];
@@ -64,7 +172,6 @@ function reducer(state, action) {
       return {
         ...state,
         connected: true,
-        // Keep the persisted mode instead of resetting to lurk
         agents: Object.fromEntries(action.data.agents.map(a => [a.id, a])),
         channels: Object.fromEntries(action.data.channels.map(c => [c.name, c])),
         messages: mergedMessages,
@@ -75,14 +182,12 @@ function reducer(state, action) {
       };
     }
     case 'CONNECTED':
-      return { ...state, connected: true, dashboardAgent: action.data?.dashboardAgent };
+      return { ...state, connected: true, dashboardAgent: action.data?.dashboardAgent ?? state.dashboardAgent };
     case 'DISCONNECTED':
       return { ...state, connected: false };
     case 'MESSAGE': {
       const channel = action.data.to;
       const existingMsgs = state.messages[channel] || [];
-      // Deduplicate by id or by ts+from+content
-      const msgKey = action.data.id || `${action.data.ts}-${action.data.from}`;
       const isDuplicate = existingMsgs.some(m =>
         (m.id && m.id === action.data.id) ||
         (m.ts === action.data.ts && m.from === action.data.from && m.content === action.data.content)
@@ -94,7 +199,6 @@ function reducer(state, action) {
         [channel]: [...existingMsgs, action.data]
       };
       persistMessages(newMessages);
-
       return { ...state, messages: newMessages };
     }
     case 'AGENT_UPDATE':
@@ -112,7 +216,6 @@ function reducer(state, action) {
     case 'SKILLS_UPDATE':
       return { ...state, skills: action.data };
     case 'SET_MODE':
-      // Persist mode to localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('dashboardMode', action.mode);
       }
@@ -128,26 +231,26 @@ function reducer(state, action) {
   }
 }
 
-// Agent color from nick
-function agentColor(nick) {
+// ============ Helpers ============
+
+function agentColor(nick: string): string {
   const hash = (nick || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const hue = hash % 360;
   return `hsl(${hue}, 70%, 60%)`;
 }
 
-// Format timestamp
-function formatTime(ts) {
+function formatTime(ts: number): string {
   const d = new Date(ts);
   return d.toLocaleTimeString('en-US', { hour12: false });
 }
 
-// WebSocket hook
-function useWebSocket(dispatch) {
-  const ws = useRef(null);
-  const [send, setSend] = useState(() => () => {});
+// ============ WebSocket Hook ============
+
+function useWebSocket(dispatch: React.Dispatch<DashboardAction>): WsSendFn {
+  const ws = useRef<WebSocket | null>(null);
+  const [send, setSend] = useState<WsSendFn>(() => () => {});
 
   useEffect(() => {
-    // In development, connect directly to backend
     const wsUrl = import.meta.env.DEV
       ? 'ws://localhost:3000/ws'
       : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
@@ -157,17 +260,16 @@ function useWebSocket(dispatch) {
 
       ws.current.onopen = () => {
         console.log('WebSocket connected');
-        // Sync saved mode to server on connect/reconnect
         const savedMode = localStorage.getItem('dashboardMode');
         if (savedMode && savedMode !== 'lurk') {
-          ws.current.send(JSON.stringify({ type: 'set_mode', data: { mode: savedMode } }));
+          ws.current!.send(JSON.stringify({ type: 'set_mode', data: { mode: savedMode } }));
         }
       };
 
-      ws.current.onmessage = (e) => {
+      ws.current.onmessage = (e: MessageEvent) => {
         const msg = JSON.parse(e.data);
         if (msg.type === 'ping') {
-          ws.current.send(JSON.stringify({ type: 'pong' }));
+          ws.current!.send(JSON.stringify({ type: 'pong' }));
           return;
         }
         switch (msg.type) {
@@ -200,7 +302,6 @@ function useWebSocket(dispatch) {
             break;
           case 'error':
             console.error('Server error:', msg.data?.code, msg.data?.message);
-            // If server says we're in lurk mode, sync the frontend state
             if (msg.data?.code === 'LURK_MODE') {
               dispatch({ type: 'SET_MODE', mode: 'lurk' });
             }
@@ -213,7 +314,7 @@ function useWebSocket(dispatch) {
         setTimeout(connect, 2000);
       };
 
-      setSend(() => (msg) => {
+      setSend(() => (msg: Record<string, unknown>) => {
         if (ws.current?.readyState === WebSocket.OPEN) {
           ws.current.send(JSON.stringify(msg));
         }
@@ -227,8 +328,9 @@ function useWebSocket(dispatch) {
   return send;
 }
 
-// Components
-function TopBar({ state, send }) {
+// ============ Components ============
+
+function TopBar({ state, send }: { state: DashboardState; send: WsSendFn }) {
   return (
     <div className="topbar">
       <div className="topbar-left">
@@ -252,24 +354,21 @@ function TopBar({ state, send }) {
   );
 }
 
-function Sidebar({ state, dispatch }) {
+function Sidebar({ state, dispatch }: { state: DashboardState; dispatch: React.Dispatch<DashboardAction> }) {
   const agents = Object.values(state.agents).sort((a, b) => {
     if (a.online !== b.online) return b.online ? 1 : -1;
     return (a.nick || a.id).localeCompare(b.nick || b.id);
   });
 
-  // Find duplicate nicks to show disambiguator
-  const nickCounts = {};
+  const nickCounts: Record<string, number> = {};
   agents.forEach(a => {
     const nick = a.nick || a.id;
     nickCounts[nick] = (nickCounts[nick] || 0) + 1;
   });
 
-  // Helper to get display name with disambiguator if needed
-  const getDisplayName = (agent) => {
+  const getDisplayName = (agent: Agent): string => {
     const nick = agent.nick || agent.id;
     if (nickCounts[nick] > 1) {
-      // Show shortened ID to distinguish duplicates
       const shortId = agent.id.replace('@', '').slice(0, 6);
       return `${nick} (${shortId})`;
     }
@@ -323,12 +422,11 @@ function Sidebar({ state, dispatch }) {
   );
 }
 
-function MessageFeed({ state, send }) {
+function MessageFeed({ state, send }: { state: DashboardState; send: WsSendFn }) {
   const [input, setInput] = useState('');
   const [hideServer, setHideServer] = useState(true);
-  const messagesEndRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const allMessages = state.messages[state.selectedChannel] || [];
-  // Filter out @server messages if hideServer is true
   const messages = hideServer
     ? allMessages.filter(m => m.from !== '@server')
     : allMessages;
@@ -337,7 +435,7 @@ function MessageFeed({ state, send }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = (e) => {
+  const handleSend = (e: FormEvent) => {
     e.preventDefault();
     if (!input.trim() || state.mode === 'lurk') return;
     send({ type: 'send_message', data: { to: state.selectedChannel, content: input } });
@@ -383,7 +481,10 @@ function MessageFeed({ state, send }) {
   );
 }
 
-function RightPanel({ state, dispatch, send }) {
+function RightPanel({ state, dispatch, send }: { state: DashboardState; dispatch: React.Dispatch<DashboardAction>; send: WsSendFn }) {
+  const [renameValue, setRenameValue] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+
   if (state.rightPanel === 'leaderboard') {
     return (
       <div className="right-panel">
@@ -461,8 +562,6 @@ function RightPanel({ state, dispatch, send }) {
 
   // Agent detail
   const agent = state.selectedAgent;
-  const [renameValue, setRenameValue] = useState('');
-  const [isRenaming, setIsRenaming] = useState(false);
 
   if (!agent) {
     return (
@@ -472,7 +571,7 @@ function RightPanel({ state, dispatch, send }) {
     );
   }
 
-  const handleRename = (e) => {
+  const handleRename = (e: FormEvent) => {
     e.preventDefault();
     if (renameValue.trim()) {
       send({ type: 'set_agent_name', data: { agentId: agent.id, name: renameValue.trim() } });
@@ -504,7 +603,7 @@ function RightPanel({ state, dispatch, send }) {
             onClick={() => { setIsRenaming(true); setRenameValue(agent.nick || ''); }}
             title="Click to rename"
           >
-            {agent.nick || agent.id} ✏️
+            {agent.nick || agent.id}
           </div>
         )}
         <div className="detail-id">{agent.id}</div>

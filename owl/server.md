@@ -101,7 +101,7 @@ In-memory state structure:
 
 | Variable        | Default                | Description            |
 | --------------- | ---------------------- | ---------------------- |
-| `AGENTCHAT_URL` | `wss://localhost:6667` | AgentChat server URL   |
+| `AGENTCHAT_URL` | `ws://localhost:6667` | AgentChat server URL   |
 | `PORT`          | `3000`                 | Dashboard HTTP/WS port |
 | `NODE_ENV`      | `development`          | Environment mode       |
 

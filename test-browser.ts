@@ -1,24 +1,30 @@
 import puppeteer from 'puppeteer';
 
-async function test() {
+interface WsConnection {
+  url: string;
+  type: string;
+  reason?: string;
+}
+
+async function test(): Promise<void> {
   console.log('Launching browser...');
   const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
 
   // Collect console logs
-  const consoleLogs = [];
+  const consoleLogs: string[] = [];
   page.on('console', msg => {
     consoleLogs.push(`[${msg.type()}] ${msg.text()}`);
   });
 
   // Collect errors
-  const errors = [];
+  const errors: string[] = [];
   page.on('pageerror', err => {
     errors.push(err.message);
   });
 
   // Track WebSocket connections
-  const wsConnections = [];
+  const wsConnections: WsConnection[] = [];
   page.on('request', req => {
     if (req.url().includes('/ws') || req.resourceType() === 'websocket') {
       wsConnections.push({ url: req.url(), type: 'request' });
@@ -33,7 +39,7 @@ async function test() {
   console.log('Navigating to dashboard...');
   try {
     await page.goto('http://localhost:5173', { waitUntil: 'networkidle0', timeout: 15000 });
-  } catch (e) {
+  } catch {
     console.log('Navigation timeout (expected for WebSocket apps)');
   }
 
@@ -59,7 +65,6 @@ async function test() {
 
   // Check if WebSocket connected by looking at page state
   const wsStatus = await page.evaluate(() => {
-    // Check if there's any indication of connection in the page
     const statusEl = document.querySelector('.status');
     return statusEl ? statusEl.textContent : 'No status element found';
   });
