@@ -41,8 +41,17 @@ Opens Vite dev server at http://localhost:5173 with hot reload.
 
 | Environment Variable | Default                | Description                    |
 | -------------------- | ---------------------- | ------------------------------ |
-| `AGENTCHAT_URL`      | `ws://localhost:6667` | AgentChat server to connect to |
+| `AGENTCHAT_URL`      | `ws://localhost:6667`  | AgentChat server to connect to |
+| `AGENTCHAT_PUBLIC`   | (unset)                | Set to `true` to allow remote/public server connections |
 | `PORT`               | `3000`                 | Dashboard port                 |
+
+By default the dashboard connects to a local server only. To connect to the public server:
+
+```bash
+AGENTCHAT_PUBLIC=true npm start
+```
+
+Setting `AGENTCHAT_PUBLIC=true` uses `wss://agentchat-server.fly.dev` by default. You can also set a custom remote URL, but `AGENTCHAT_PUBLIC=true` is still required for any non-localhost address.
 
 ## Architecture
 

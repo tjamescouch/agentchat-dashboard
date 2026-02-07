@@ -7,7 +7,26 @@ import tweetnaclUtil from 'tweetnacl-util';
 
 const { encodeBase64, decodeBase64 } = tweetnaclUtil;
 
-const AGENTCHAT_URL = process.env.AGENTCHAT_URL || 'ws://localhost:6667';
+const PUBLIC_AGENTCHAT_URL = 'wss://agentchat-server.fly.dev';
+const LOCAL_AGENTCHAT_URL = 'ws://localhost:6667';
+const AGENTCHAT_PUBLIC = process.env.AGENTCHAT_PUBLIC === 'true';
+
+function resolveAgentChatUrl(): string {
+  const explicit = process.env.AGENTCHAT_URL;
+  if (explicit) {
+    const parsed = new URL(explicit);
+    const isLocal = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '::1';
+    if (!isLocal && !AGENTCHAT_PUBLIC) {
+      console.error(`ERROR: AGENTCHAT_URL points to remote host "${parsed.hostname}" but AGENTCHAT_PUBLIC is not set.`);
+      console.error('Set AGENTCHAT_PUBLIC=true to allow connections to non-localhost servers.');
+      process.exit(1);
+    }
+    return explicit;
+  }
+  return AGENTCHAT_PUBLIC ? PUBLIC_AGENTCHAT_URL : LOCAL_AGENTCHAT_URL;
+}
+
+const AGENTCHAT_URL = resolveAgentChatUrl();
 const PORT = Number(process.env.PORT) || 3000;
 const IDENTITY_FILE = '.dashboard-identity.json';
 const AGENT_NAMES_FILE = 'agent-names.json';
