@@ -10,6 +10,7 @@ interface Agent {
   online: boolean;
   presence?: string;
   event?: string;
+  verified?: boolean;
 }
 
 interface Channel {
@@ -392,6 +393,7 @@ function Sidebar({ state, dispatch }: { state: DashboardState; dispatch: React.D
               <span className="nick" style={{ color: agentColor(agent.nick || agent.id) }}>
                 {getDisplayName(agent)}
               </span>
+              {agent.verified && <span className="verified-badge" title="Verified (pubkey authenticated)">&#x2713;</span>}
             </div>
           ))}
         </div>
@@ -462,6 +464,7 @@ function MessageFeed({ state, send }: { state: DashboardState; send: WsSendFn })
             <span className="from" style={{ color: agentColor(state.agents[msg.from]?.nick || msg.fromNick || msg.from) }}>
               &lt;{state.agents[msg.from]?.nick || msg.fromNick || msg.from}&gt;
             </span>
+            {state.agents[msg.from]?.verified && <span className="verified-badge">&#x2713;</span>}
             <span className="content">{msg.content}</span>
           </div>
         ))}
@@ -609,6 +612,7 @@ function RightPanel({ state, dispatch, send }: { state: DashboardState; dispatch
         <div className="detail-id">{agent.id}</div>
         <div className={`detail-status ${agent.online ? 'online' : 'offline'}`}>
           {agent.online ? 'Online' : 'Offline'}
+          {agent.verified && <span className="verified-badge-detail">Verified</span>}
         </div>
         {agent.channels && agent.channels.length > 0 && (
           <div className="detail-channels">

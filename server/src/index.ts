@@ -54,6 +54,7 @@ interface AgentState {
   lastSeen: number;
   online: boolean;
   presence?: string;
+  verified: boolean;
 }
 
 interface ChannelState {
@@ -106,9 +107,9 @@ interface AgentChatMsg {
   content?: string;
   ts?: number;
   channel?: string;
-  list?: Array<{ name: string; agents?: number; id: string; presence?: string }>;
+  list?: Array<{ name: string; agents?: number; id: string; presence?: string; verified?: boolean }>;
   channels?: Array<{ name: string; agents?: number }>;
-  agents?: Array<{ id: string; name: string; presence?: string }>;
+  agents?: Array<{ id: string; name: string; presence?: string; verified?: boolean }>;
   agent?: string;
   agentId?: string;
   proposal_id?: string;
@@ -121,6 +122,7 @@ interface AgentChatMsg {
   code?: string;
   message?: string;
   sig?: string;
+  verified?: boolean;
 }
 
 interface Skill {
@@ -169,7 +171,7 @@ function loadOrCreateIdentity(): Identity {
 
   const keypair = nacl.sign.keyPair();
   const fingerprint = encodeBase64(keypair.publicKey).slice(0, 8);
-  const nick = `dashboard-${fingerprint.slice(0, 4).toLowerCase()}`;
+  const nick = `dashboard-${fingerprint.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toLowerCase()}`;
 
   writeFileSync(IDENTITY_FILE, JSON.stringify({
     publicKey: encodeBase64(keypair.publicKey),
@@ -346,10 +348,13 @@ function handleAgentChatMessage(msg: AgentChatMsg): void {
             channels: new Set([msg.channel!]),
             lastSeen: Date.now(),
             online: true,
-            presence: a.presence
+            presence: a.presence,
+            verified: !!a.verified
           };
           if (state.agents.has(a.id)) {
-            state.agents.get(a.id)!.channels.add(msg.channel!);
+            const existing = state.agents.get(a.id)!;
+            existing.channels.add(msg.channel!);
+            if (agent.verified) existing.verified = true;
           } else {
             state.agents.set(a.id, agent);
           }
@@ -373,13 +378,15 @@ function handleAgentChatMessage(msg: AgentChatMsg): void {
         nick: msg.name || joiningAgentId,
         channels: new Set([msg.channel].filter(Boolean) as string[]),
         lastSeen: Date.now(),
-        online: true
+        online: true,
+        verified: !!msg.verified
       };
       if (state.agents.has(joiningAgentId)) {
         const existing = state.agents.get(joiningAgentId)!;
         if (msg.channel) existing.channels.add(msg.channel);
         existing.online = true;
         existing.lastSeen = Date.now();
+        if (joiningAgent.verified) existing.verified = true;
       } else {
         state.agents.set(joiningAgentId, joiningAgent);
       }
