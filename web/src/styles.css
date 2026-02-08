@@ -567,6 +567,23 @@ body {
   color: var(--text-muted);
 }
 
+.verified-badge {
+  color: var(--accent-blue);
+  font-size: 11px;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.verified-badge-detail {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: var(--accent-blue);
+  border: 1px solid var(--accent-blue);
+  border-radius: 3px;
+}
+
 .detail-channels .label {
   display: block;
   color: var(--text-muted);
