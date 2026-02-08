@@ -369,19 +369,11 @@ function Sidebar({ state, dispatch }: { state: DashboardState; dispatch: React.D
     return (a.nick || a.id).localeCompare(b.nick || b.id);
   });
 
-  const nickCounts: Record<string, number> = {};
-  agents.forEach(a => {
-    const nick = a.nick || a.id;
-    nickCounts[nick] = (nickCounts[nick] || 0) + 1;
-  });
-
   const getDisplayName = (agent: Agent): string => {
     const nick = agent.nick || agent.id;
-    if (nickCounts[nick] > 1) {
-      const shortId = agent.id.replace('@', '').slice(0, 6);
-      return `${nick} (${shortId})`;
-    }
-    return nick;
+    const shortId = agent.id.replace('@', '').slice(0, 6);
+    if (nick === agent.id) return nick;
+    return `${nick} (${shortId})`;
   };
 
   const channels = Object.values(state.channels);
@@ -497,6 +489,7 @@ function MessageFeed({ state, send }: { state: DashboardState; send: WsSendFn })
             <span className="from" style={{ color: agentColor(state.agents[msg.from]?.nick || msg.fromNick || msg.from) }}>
               &lt;{state.agents[msg.from]?.nick || msg.fromNick || msg.from}&gt;
             </span>
+            <span className="agent-id">{msg.from}</span>
             {state.agents[msg.from]?.verified && <span className="verified-badge">&#x2713;</span>}
             <span className="content">{msg.content}</span>
           </div>
@@ -538,6 +531,7 @@ function RightPanel({ state, dispatch, send }: { state: DashboardState; dispatch
               <span className="nick" style={{ color: agentColor(entry.nick || entry.id) }}>
                 {entry.nick || entry.id}
               </span>
+              <span className="agent-id">{entry.id}</span>
               <span className="elo">{entry.elo}</span>
             </div>
           ))}
