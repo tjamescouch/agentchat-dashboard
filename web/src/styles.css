@@ -249,7 +249,7 @@ body {
 
 .server-toggle {
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -578,7 +578,7 @@ body {
 
 .rename-form button {
   padding: 6px 12px;
-  background: var(--text-dim);
+  background: var(--text-muted);
   border: none;
   color: var(--bg-primary);
   font-family: inherit;

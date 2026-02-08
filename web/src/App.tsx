@@ -648,114 +648,6 @@ function Sidebar({ state, dispatch, sidebarWidth }: { state: DashboardState; dis
 
 // ============ Slurp helpers (browser-side) ============
 
-async function readFileAsText(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsText(file);
-  });
-}
-
-async function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.split(',')[1] || '');
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-function isBinaryFile(file: File): boolean {
-  const binaryTypes = [
-    'image/', 'audio/', 'video/', 'application/octet-stream',
-    'application/zip', 'application/gzip', 'application/pdf',
-    'application/wasm', 'font/'
-  ];
-  return binaryTypes.some(t => file.type.startsWith(t)) || file.type === '';
-}
-
-async function collectDroppedFiles(items: DataTransferItemList): Promise<File[]> {
-  const files: File[] = [];
-
-  async function walkEntry(entry: FileSystemEntry, pathPrefix: string) {
-    if (entry.isFile) {
-      const file = await new Promise<File>((resolve, reject) => {
-        (entry as FileSystemFileEntry).file(resolve, reject);
-      });
-      // Attach relative path
-      Object.defineProperty(file, 'relativePath', { value: pathPrefix + entry.name });
-      files.push(file);
-    } else if (entry.isDirectory) {
-      const dirReader = (entry as FileSystemDirectoryEntry).createReader();
-      const entries = await new Promise<FileSystemEntry[]>((resolve, reject) => {
-        dirReader.readEntries(resolve, reject);
-      });
-      for (const child of entries) {
-        await walkEntry(child, pathPrefix + entry.name + '/');
-      }
-    }
-  }
-
-  // Grab all entries synchronously — DataTransfer is cleared after yielding to the event loop
-  const entries: FileSystemEntry[] = [];
-  for (let i = 0; i < items.length; i++) {
-    const entry = items[i]?.webkitGetAsEntry?.();
-    if (entry) entries.push(entry);
-  }
-  for (const entry of entries) {
-    await walkEntry(entry, '');
-  }
-  return files;
-}
-
-async function packFilesToSlurp(files: File[], name: string): Promise<string> {
-  const lines: string[] = [];
-  lines.push('#!/bin/sh');
-  lines.push('# --- SLURP v1 ---');
-  lines.push('#');
-  lines.push(`# name: ${name}`);
-  lines.push(`# files: ${files.length}`);
-  lines.push(`# created: ${new Date().toISOString()}`);
-  lines.push('#');
-  lines.push('');
-  lines.push('set -e');
-  lines.push('');
-  lines.push(`echo "applying ${name}..."`);
-  lines.push('');
-
-  for (const file of files) {
-    const relPath = (file as File & { relativePath?: string }).relativePath || file.name;
-    const marker = 'SLURP_END_' + relPath.replace(/[/.]/g, '_');
-    const dir = relPath.includes('/') ? relPath.split('/').slice(0, -1).join('/') : null;
-
-    if (dir) {
-      lines.push(`mkdir -p '${dir}'`);
-    }
-
-    if (isBinaryFile(file)) {
-      const b64 = await readFileAsBase64(file);
-      lines.push(`base64 -d > '${relPath}' << '${marker}'`);
-      const wrapped = b64.match(/.{1,76}/g)?.join('\n') || '';
-      lines.push(wrapped);
-    } else {
-      const text = await readFileAsText(file);
-      lines.push(`cat > '${relPath}' << '${marker}'`);
-      lines.push(text.endsWith('\n') ? text.slice(0, -1) : text);
-    }
-    lines.push(marker);
-    lines.push('');
-  }
-
-  lines.push('echo ""');
-  lines.push(`echo "done. ${files.length} files extracted."`);
-  lines.push('');
-  return lines.join('\n');
-}
-
 // ============ Components ============
 
 function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatch: React.Dispatch<DashboardAction>; send: WsSendFn }) {
@@ -764,9 +656,6 @@ function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatc
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const [isDragging, setIsDragging] = useState(false);
-  const [transferStatus, setTransferStatus] = useState<string | null>(null);
-  const dragCounter = useRef(0);
   const allMessages = state.messages[state.selectedChannel] || [];
   const messages = hideServer
     ? allMessages.filter(m => m.from !== '@server')
@@ -826,77 +715,8 @@ function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatc
     setInput('');
   };
 
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounter.current++;
-    if (e.dataTransfer.types.includes('Files')) {
-      setIsDragging(true);
-    }
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounter.current--;
-    if (dragCounter.current === 0) {
-      setIsDragging(false);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounter.current = 0;
-    setIsDragging(false);
-
-    if (state.mode === 'lurk') return;
-
-    const items = e.dataTransfer.items;
-    if (!items || items.length === 0) return;
-
-    // Capture entry name before async — DataTransfer is cleared after the event
-    const firstEntry = items[0]?.webkitGetAsEntry?.();
-    const archiveName = firstEntry?.name || 'drop';
-
-    setTransferStatus('Reading files...');
-    try {
-      const files = await collectDroppedFiles(items);
-      if (files.length === 0) {
-        setTransferStatus(null);
-        return;
-      }
-
-      setTransferStatus(`Packing ${files.length} file(s)...`);
-      const slurpContent = await packFilesToSlurp(files, archiveName);
-
-      setTransferStatus(`Sending ${files.length} file(s) to ${state.selectedChannel}...`);
-      send({ type: 'send_message', data: { to: state.selectedChannel, content: slurpContent } });
-
-      setTransferStatus(`Sent ${files.length} file(s) as slurp archive.`);
-      setTimeout(() => setTransferStatus(null), 3000);
-    } catch (err) {
-      setTransferStatus(`Error: ${(err as Error).message}`);
-      setTimeout(() => setTransferStatus(null), 5000);
-    }
-  };
-
   return (
-    <div
-      className="message-feed"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      {isDragging && (
-        <div className="drop-overlay">
-          <div className="drop-overlay-text">
-            Drop files to send as slurp archive to {state.selectedChannel}
-          </div>
-        </div>
-      )}
+    <div className="message-feed">
       <div className="feed-header">
         <span className="channel-title">{state.selectedChannel || 'Select a channel'}</span>
         <label className="server-toggle">
@@ -936,12 +756,6 @@ function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatc
             : typingInChannel.length === 2
               ? `${typingInChannel[0]} and ${typingInChannel[1]} are typing...`
               : `${typingInChannel[0]} and ${typingInChannel.length - 1} others are typing...`}
-        </div>
-      )}
-      {transferStatus && (
-        <div className="file-transfer">
-          {!transferStatus.startsWith('Sent') && !transferStatus.startsWith('Error') && <span className="spinner" />}
-          {transferStatus}
         </div>
       )}
       <form className="input-bar" onSubmit={handleSend}>
