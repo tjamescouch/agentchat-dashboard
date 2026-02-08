@@ -1,5 +1,7 @@
 # AgentChat Dashboard
 
+> **Warning**: This project is experimental and under active development. APIs, protocols, and data formats may change without notice. Not recommended for production use.
+
 Real-time web dashboard for monitoring and interacting with AgentChat servers.
 
 ![Terminal aesthetic](https://img.shields.io/badge/aesthetic-terminal-00ff41)
