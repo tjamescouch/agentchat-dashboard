@@ -140,6 +140,10 @@ interface DashboardClient {
   subscriptions: Set<string>;
   lastPing: number;
   messageTimestamps: number[];
+  identity: Identity | null;
+  agentChatWs: WebSocket | null;
+  agentId: string | null;
+  nick: string | null;
 }
 
 interface AgentChatMsg {
@@ -248,6 +252,18 @@ function loadOrCreateIdentity(): Identity {
 
   console.log(`Created new identity: ${nick}`);
   return { ...keypair, nick };
+}
+
+function generateEphemeralIdentity(): Identity {
+  const keypair = nacl.sign.keyPair();
+  const fingerprint = encodeBase64(keypair.publicKey).slice(0, 8);
+  const nick = `visitor-${fingerprint.slice(0, 4).toLowerCase()}`;
+  return {
+    publicKey: keypair.publicKey,
+    secretKey: keypair.secretKey,
+    nick,
+    pubkey: encodeBase64(keypair.publicKey)
+  };
 }
 
 // ============ State Store ============
@@ -701,6 +717,145 @@ function handleIncomingMessage(msg: AgentChatMsg): void {
   broadcastToDashboards({ type: 'message', data: message });
 }
 
+// ============ Per-Session AgentChat Connections ============
+
+function signMessageWithIdentity(content: string, id: Identity): string {
+  const messageBytes = new TextEncoder().encode(content);
+  const signature = nacl.sign.detached(messageBytes, id.secretKey);
+  return encodeBase64(signature);
+}
+
+function connectClientToAgentChat(client: DashboardClient): void {
+  if (client.agentChatWs) {
+    disconnectClientFromAgentChat(client);
+  }
+
+  const ephemeral = generateEphemeralIdentity();
+  client.identity = ephemeral;
+  client.nick = ephemeral.nick;
+
+  console.log(`Creating per-session AgentChat connection for ${client.id} as ${ephemeral.nick}`);
+
+  const ws = new WebSocket(AGENTCHAT_URL);
+  client.agentChatWs = ws;
+
+  ws.on('open', () => {
+    console.log(`Per-session connection open for ${client.id}`);
+    ws.send(JSON.stringify({
+      type: 'IDENTIFY',
+      name: ephemeral.nick,
+      pubkey: ephemeral.pubkey
+    }));
+  });
+
+  ws.on('message', (data) => {
+    try {
+      const msg: AgentChatMsg = JSON.parse(data.toString());
+      handlePerSessionMessage(client, msg);
+    } catch (e) {
+      console.error(`Per-session message parse error for ${client.id}:`, e);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log(`Per-session connection closed for ${client.id}`);
+    // If the per-session connection drops, fall back to lurk mode
+    if (client.agentChatWs === ws) {
+      client.agentChatWs = null;
+      client.agentId = null;
+      client.identity = null;
+      client.nick = null;
+      client.mode = 'lurk';
+      if (client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(JSON.stringify({
+          type: 'mode_changed',
+          data: { mode: 'lurk', reason: 'session_connection_lost' }
+        }));
+      }
+    }
+  });
+
+  ws.on('error', (err) => {
+    console.error(`Per-session connection error for ${client.id}:`, err.message);
+  });
+}
+
+function handlePerSessionMessage(client: DashboardClient, msg: AgentChatMsg): void {
+  switch (msg.type) {
+    case 'WELCOME':
+      client.agentId = msg.agent_id || null;
+      console.log(`Per-session ${client.id} registered as ${msg.agent_id}`);
+      // Notify the browser of their session identity
+      if (client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(JSON.stringify({
+          type: 'session_identity',
+          data: { agentId: client.agentId, nick: client.nick }
+        }));
+      }
+      // Join channels the observer is already in
+      for (const channelName of state.channels.keys()) {
+        client.agentChatWs?.send(JSON.stringify({
+          type: 'JOIN',
+          channel: channelName
+        }));
+      }
+      break;
+
+    case 'CHALLENGE': {
+      // Ed25519 challenge-response auth
+      const challenge = msg.server_nonce || msg.message || '';
+      if (client.identity && challenge) {
+        const challengeBytes = new TextEncoder().encode(challenge);
+        const signature = nacl.sign.detached(challengeBytes, client.identity.secretKey);
+        client.agentChatWs?.send(JSON.stringify({
+          type: 'CHALLENGE_RESPONSE',
+          sig: encodeBase64(signature)
+        }));
+      }
+      break;
+    }
+
+    case 'JOINED':
+      // Per-session joined a channel — no extra state tracking needed
+      break;
+
+    case 'MSG':
+      // Feed into global state so all dashboard clients see it via broadcast
+      if (msg.to) {
+        handleIncomingMessage(msg);
+      }
+      break;
+
+    case 'ERROR':
+      console.error(`Per-session error for ${client.id}:`, msg.code, msg.message);
+      if (client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(JSON.stringify({
+          type: 'error',
+          data: { code: msg.code || 'AGENTCHAT_ERROR', message: msg.message || 'AgentChat error' }
+        }));
+      }
+      break;
+
+    case 'PONG':
+      break;
+  }
+}
+
+function disconnectClientFromAgentChat(client: DashboardClient): void {
+  if (client.agentChatWs) {
+    console.log(`Closing per-session AgentChat connection for ${client.id}`);
+    try {
+      client.agentChatWs.close();
+    } catch {
+      // Ignore close errors
+    }
+    client.agentChatWs = null;
+  }
+  client.identity = null;
+  client.agentId = null;
+  client.nick = null;
+}
+
 // ============ Dashboard Bridge ============
 
 const dashboardClients = new Set<DashboardClient>();
@@ -758,8 +913,8 @@ function handleDashboardMessage(client: DashboardClient, msg: DashboardMessage):
         client.ws.send(JSON.stringify({ type: 'error', data: { code: 'LURK_MODE', message: 'Cannot send in lurk mode' } }));
         return;
       }
-      if (!agentChatWs || agentChatWs.readyState !== WebSocket.OPEN) {
-        client.ws.send(JSON.stringify({ type: 'error', data: { code: 'NOT_CONNECTED', message: 'Not connected to AgentChat server' } }));
+      if (!client.agentChatWs || client.agentChatWs.readyState !== WebSocket.OPEN) {
+        client.ws.send(JSON.stringify({ type: 'error', data: { code: 'NO_SESSION', message: 'No per-session AgentChat connection. Switch to participate mode first.' } }));
         return;
       }
       {
@@ -768,16 +923,23 @@ function handleDashboardMessage(client: DashboardClient, msg: DashboardMessage):
           client.ws.send(JSON.stringify({ type: 'error', data: { code: 'INVALID_MESSAGE', message: 'Message empty or too long (max 4000)' } }));
           return;
         }
-        const sig = signMessage(content);
-        send({ type: 'MSG', to: msg.data.to, content, sig });
+        const sig = client.identity ? signMessageWithIdentity(content, client.identity) : null;
+        client.agentChatWs.send(JSON.stringify({ type: 'MSG', to: msg.data.to, content, sig }));
         client.ws.send(JSON.stringify({ type: 'message_sent', data: { success: true } }));
       }
       break;
 
-    case 'set_mode':
-      client.mode = (msg.data as { mode: string }).mode;
+    case 'set_mode': {
+      const newMode = (msg.data as { mode: string }).mode;
+      if (newMode === 'participate' && client.mode !== 'participate') {
+        connectClientToAgentChat(client);
+      } else if (newMode === 'lurk' && client.mode !== 'lurk') {
+        disconnectClientFromAgentChat(client);
+      }
+      client.mode = newMode;
       client.ws.send(JSON.stringify({ type: 'mode_changed', data: { mode: client.mode } }));
       break;
+    }
 
     case 'subscribe':
       client.subscriptions = new Set((msg.data as { channels: string[] }).channels);
@@ -788,7 +950,12 @@ function handleDashboardMessage(client: DashboardClient, msg: DashboardMessage):
         client.ws.send(JSON.stringify({ type: 'error', data: { code: 'LURK_MODE', message: 'Cannot join in lurk mode' } }));
         return;
       }
-      send({ type: 'JOIN', channel: (msg.data as { channel: string }).channel });
+      if (client.agentChatWs && client.agentChatWs.readyState === WebSocket.OPEN) {
+        client.agentChatWs.send(JSON.stringify({ type: 'JOIN', channel: (msg.data as { channel: string }).channel }));
+      } else {
+        // Fall back to global observer for channel joining
+        send({ type: 'JOIN', channel: (msg.data as { channel: string }).channel });
+      }
       break;
 
     case 'refresh_channels':
@@ -918,7 +1085,11 @@ wss.on('connection', (ws, req) => {
     mode: 'lurk',
     subscriptions: new Set(),
     lastPing: Date.now(),
-    messageTimestamps: []
+    messageTimestamps: [],
+    identity: null,
+    agentChatWs: null,
+    agentId: null,
+    nick: null
   };
   dashboardClients.add(client);
   console.log(`Dashboard client connected: ${client.id} from ${ip}`);
@@ -947,6 +1118,7 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
+    disconnectClientFromAgentChat(client);
     dashboardClients.delete(client);
     const count = ipConnectionCounts.get(client.ip) || 1;
     if (count <= 1) {
