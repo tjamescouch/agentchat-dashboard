@@ -266,6 +266,12 @@ body {
   margin: 0 4px;
 }
 
+.agent-id {
+  color: var(--text-muted);
+  font-size: 0.8em;
+  margin-left: 2px;
+}
+
 .message .content {
   color: #b0b0b0;
 }
