@@ -700,11 +700,14 @@ async function collectDroppedFiles(items: DataTransferItemList): Promise<File[]>
     }
   }
 
+  // Grab all entries synchronously — DataTransfer is cleared after yielding to the event loop
+  const entries: FileSystemEntry[] = [];
   for (let i = 0; i < items.length; i++) {
-    const entry = items[i].webkitGetAsEntry?.();
-    if (entry) {
-      await walkEntry(entry, '');
-    }
+    const entry = items[i]?.webkitGetAsEntry?.();
+    if (entry) entries.push(entry);
+  }
+  for (const entry of entries) {
+    await walkEntry(entry, '');
   }
   return files;
 }
@@ -853,6 +856,10 @@ function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatc
     const items = e.dataTransfer.items;
     if (!items || items.length === 0) return;
 
+    // Capture entry name before async — DataTransfer is cleared after the event
+    const firstEntry = items[0]?.webkitGetAsEntry?.();
+    const archiveName = firstEntry?.name || 'drop';
+
     setTransferStatus('Reading files...');
     try {
       const files = await collectDroppedFiles(items);
@@ -862,8 +869,6 @@ function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatc
       }
 
       setTransferStatus(`Packing ${files.length} file(s)...`);
-      const firstEntry = e.dataTransfer.items[0].webkitGetAsEntry?.();
-      const archiveName = firstEntry?.name || 'drop';
       const slurpContent = await packFilesToSlurp(files, archiveName);
 
       setTransferStatus(`Sending ${files.length} file(s) to ${state.selectedChannel}...`);
