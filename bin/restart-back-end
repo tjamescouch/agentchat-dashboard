@@ -1,0 +1,6 @@
+#!/bin/bash
+lsof -ti:3000 | xargs kill 2>/dev/null
+sleep 0.5
+cd ~/dev/claude/agentchat-dashboard/server
+npm run dev &
+echo "Backend restarted"

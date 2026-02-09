@@ -1,0 +1,6 @@
+#!/bin/bash
+pkill -f 'vite.*agentchat-dashboard' 2>/dev/null
+sleep 0.5
+cd ~/dev/claude/agentchat-dashboard/web
+npm run dev &
+echo "Dashboard restarted"

@@ -118,6 +118,12 @@ interface FileTransferUI {
   error?: string;
 }
 
+interface LogEntry {
+  level: string;
+  ts: number;
+  msg: string;
+}
+
 interface DashboardState {
   connected: boolean;
   mode: string;
@@ -137,6 +143,8 @@ interface DashboardState {
   transfers: Record<string, FileTransferUI>;
   sendModal: { transferId: string; files: { name: string; size: number }[] } | null;
   saveModal: { transferId: string; files: { name: string; size: number }[] } | null;
+  logs: LogEntry[];
+  logsOpen: boolean;
 }
 
 type DashboardAction =
@@ -159,7 +167,11 @@ type DashboardAction =
   | { type: 'SHOW_SEND_MODAL'; data: { transferId: string; files: { name: string; size: number }[] } }
   | { type: 'HIDE_SEND_MODAL' }
   | { type: 'SHOW_SAVE_MODAL'; data: { transferId: string; files: { name: string; size: number }[] } }
-  | { type: 'HIDE_SAVE_MODAL' };
+  | { type: 'HIDE_SAVE_MODAL' }
+  | { type: 'LOG'; data: LogEntry }
+  | { type: 'LOG_HISTORY'; data: LogEntry[] }
+  | { type: 'TOGGLE_LOGS' }
+  | { type: 'CLEAR_LOGS' };
 
 interface StateSyncPayload {
   agents: Agent[];
@@ -229,7 +241,9 @@ const initialState: DashboardState = {
   typingAgents: {},
   transfers: {},
   sendModal: null,
-  saveModal: null
+  saveModal: null,
+  logs: [],
+  logsOpen: false
 };
 
 function reducer(state: DashboardState, action: DashboardAction): DashboardState {
@@ -338,6 +352,16 @@ function reducer(state: DashboardState, action: DashboardAction): DashboardState
       return { ...state, saveModal: action.data };
     case 'HIDE_SAVE_MODAL':
       return { ...state, saveModal: null };
+    case 'LOG': {
+      const logs = [...state.logs, action.data];
+      return { ...state, logs: logs.length > 500 ? logs.slice(-500) : logs };
+    }
+    case 'LOG_HISTORY':
+      return { ...state, logs: action.data.slice(-500) };
+    case 'TOGGLE_LOGS':
+      return { ...state, logsOpen: !state.logsOpen };
+    case 'CLEAR_LOGS':
+      return { ...state, logs: [] };
     default:
       return state;
   }
@@ -489,6 +513,12 @@ function useWebSocket(dispatch: React.Dispatch<DashboardAction>): WsSendFn {
           case 'save_complete':
             dispatch({ type: 'HIDE_SAVE_MODAL' });
             break;
+          case 'log':
+            dispatch({ type: 'LOG', data: msg.data });
+            break;
+          case 'log_history':
+            dispatch({ type: 'LOG_HISTORY', data: msg.data });
+            break;
           case 'error':
             console.error('Server error:', msg.data?.code, msg.data?.message);
             if (msg.data?.code === 'LURK_MODE') {
@@ -519,7 +549,7 @@ function useWebSocket(dispatch: React.Dispatch<DashboardAction>): WsSendFn {
 
 // ============ Resize Hook ============
 
-function useResizable(initialWidth: number, min: number, max: number, side: 'left' | 'right') {
+function useResizable(initialWidth: number, min: number, max: number, side: 'left' | 'right' | 'bottom') {
   const [width, setWidth] = useState(initialWidth);
   const isResizing = useRef(false);
   const handleRef = useRef<HTMLDivElement>(null);
@@ -528,12 +558,15 @@ function useResizable(initialWidth: number, min: number, max: number, side: 'lef
     e.preventDefault();
     isResizing.current = true;
     handleRef.current?.classList.add('active');
-    const startX = e.clientX;
+    const startPos = side === 'bottom' ? e.clientY : e.clientX;
     const startWidth = width;
 
     const onMouseMove = (e: MouseEvent) => {
       if (!isResizing.current) return;
-      const delta = side === 'left' ? e.clientX - startX : startX - e.clientX;
+      const currentPos = side === 'bottom' ? e.clientY : e.clientX;
+      const delta = side === 'left' ? currentPos - startPos
+                  : side === 'right' ? startPos - currentPos
+                  : startPos - currentPos;
       setWidth(Math.min(max, Math.max(min, startWidth + delta)));
     };
 
@@ -546,7 +579,7 @@ function useResizable(initialWidth: number, min: number, max: number, side: 'lef
       document.body.style.userSelect = '';
     };
 
-    document.body.style.cursor = 'col-resize';
+    document.body.style.cursor = side === 'bottom' ? 'row-resize' : 'col-resize';
     document.body.style.userSelect = 'none';
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
@@ -557,7 +590,7 @@ function useResizable(initialWidth: number, min: number, max: number, side: 'lef
 
 // ============ Components ============
 
-function TopBar({ state, send }: { state: DashboardState; send: WsSendFn }) {
+function TopBar({ state, dispatch, send }: { state: DashboardState; dispatch: React.Dispatch<DashboardAction>; send: WsSendFn }) {
   return (
     <div className="topbar">
       <div className="topbar-left">
@@ -570,6 +603,12 @@ function TopBar({ state, send }: { state: DashboardState; send: WsSendFn }) {
         {state.dashboardAgent && (
           <span className="dashboard-nick">as {state.dashboardAgent.nick}</span>
         )}
+        <button
+          className={`logs-btn ${state.logsOpen ? 'active' : ''}`}
+          onClick={() => dispatch({ type: 'TOGGLE_LOGS' })}
+        >
+          LOGS
+        </button>
         <button
           className={`mode-btn ${state.mode}`}
           onClick={() => send({ type: 'set_mode', data: { mode: state.mode === 'lurk' ? 'participate' : 'lurk' } })}
@@ -1449,24 +1488,65 @@ function SaveModal({ state, dispatch, send }: { state: DashboardState; dispatch:
   );
 }
 
+function LogsPanel({ state, dispatch }: { state: DashboardState; dispatch: React.Dispatch<DashboardAction> }) {
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [state.logs.length]);
+
+  if (!state.logsOpen) return null;
+
+  return (
+    <div className="logs-panel">
+      <div className="logs-header">
+        <span className="logs-title">SERVER LOGS ({state.logs.length})</span>
+        <div className="logs-actions">
+          <button onClick={() => dispatch({ type: 'CLEAR_LOGS' })}>Clear</button>
+          <button onClick={() => dispatch({ type: 'TOGGLE_LOGS' })}>Close</button>
+        </div>
+      </div>
+      <div className="logs-body">
+        {state.logs.map((log, i) => (
+          <div key={i} className={`log-line ${log.level}`}>
+            <span className="log-ts">[{formatTime(log.ts)}]</span> {log.msg}
+          </div>
+        ))}
+        <div ref={logsEndRef} />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const send = useWebSocket(dispatch);
   const sidebar = useResizable(220, 160, 400, 'left');
   const rightPanel = useResizable(280, 200, 500, 'right');
+  const logsPanel = useResizable(200, 80, 500, 'bottom');
 
   return (
     <DashboardContext.Provider value={{ state, dispatch, send }}>
       <div className="dashboard">
-        <TopBar state={state} send={send} />
-        <div className="main">
-          <Sidebar state={state} dispatch={dispatch} sidebarWidth={sidebar.width} />
-          <div className="resize-handle" ref={sidebar.handleRef} onMouseDown={sidebar.onMouseDown} />
-          <DropZone state={state} dispatch={dispatch}>
-            <MessageFeed state={state} dispatch={dispatch} send={send} />
-          </DropZone>
-          <div className="resize-handle" ref={rightPanel.handleRef} onMouseDown={rightPanel.onMouseDown} />
-          <RightPanel state={state} dispatch={dispatch} send={send} panelWidth={rightPanel.width} />
+        <TopBar state={state} dispatch={dispatch} send={send} />
+        <div className="content-area">
+          <div className="main">
+            <Sidebar state={state} dispatch={dispatch} sidebarWidth={sidebar.width} />
+            <div className="resize-handle" ref={sidebar.handleRef} onMouseDown={sidebar.onMouseDown} />
+            <DropZone state={state} dispatch={dispatch}>
+              <MessageFeed state={state} dispatch={dispatch} send={send} />
+            </DropZone>
+            <div className="resize-handle" ref={rightPanel.handleRef} onMouseDown={rightPanel.onMouseDown} />
+            <RightPanel state={state} dispatch={dispatch} send={send} panelWidth={rightPanel.width} />
+          </div>
+          {state.logsOpen && (
+            <>
+              <div className="resize-handle-h" ref={logsPanel.handleRef} onMouseDown={logsPanel.onMouseDown} />
+              <div style={{ height: logsPanel.width }}>
+                <LogsPanel state={state} dispatch={dispatch} />
+              </div>
+            </>
+          )}
         </div>
         <SendFileModal state={state} dispatch={dispatch} send={send} />
         <SaveModal state={state} dispatch={dispatch} send={send} />

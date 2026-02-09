@@ -1,0 +1,8 @@
+#!/bin/bash
+pr=$(gh pr list --repo tjamescouch/agentchat-dashboard --state open --json number --jq '.[0].number' 2>/dev/null)
+if [ -z "$pr" ]; then
+  echo "No open PRs"
+  exit 1
+fi
+echo "Opening PR #$pr"
+gh pr view "$pr" --repo tjamescouch/agentchat-dashboard --web

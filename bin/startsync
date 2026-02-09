@@ -1,0 +1,10 @@
+#!/bin/bash
+cd ~/dev/claude/agentchat-dashboard
+git pull
+
+LOGDIR="$HOME/.local/log"
+mkdir -p "$LOGDIR"
+
+npm run dev > "$LOGDIR/dashboard.log" 2>&1 &
+echo "Dashboard running (pid $!) — logs: $LOGDIR/dashboard.log"
+echo "  tail -f $LOGDIR/dashboard.log"

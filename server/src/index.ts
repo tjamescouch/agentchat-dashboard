@@ -11,6 +11,31 @@ import tweetnaclUtil from 'tweetnacl-util';
 
 const { encodeBase64, decodeBase64 } = tweetnaclUtil;
 
+// ============ Log Capture ============
+const LOG_BUFFER_SIZE = 200;
+interface LogEntry { level: string; ts: number; msg: string }
+const logBuffer: LogEntry[] = [];
+let broadcastLog: ((entry: LogEntry) => void) | null = null;
+
+(function captureConsole() {
+  const origLog = console.log.bind(console);
+  const origError = console.error.bind(console);
+  const origWarn = console.warn.bind(console);
+
+  function capture(level: string, origFn: (...args: unknown[]) => void, args: unknown[]) {
+    const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+    const entry: LogEntry = { level, ts: Date.now(), msg };
+    logBuffer.push(entry);
+    if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
+    origFn(...args);
+    broadcastLog?.(entry);
+  }
+
+  console.log = (...args: unknown[]) => capture('info', origLog, args);
+  console.error = (...args: unknown[]) => capture('error', origError, args);
+  console.warn = (...args: unknown[]) => capture('warn', origWarn, args);
+})();
+
 // Convert raw Ed25519 public key (32 bytes) to SPKI PEM format
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
 function rawPubkeyToPem(rawKey: Uint8Array): string {
@@ -1363,6 +1388,11 @@ function disconnectClientFromAgentChat(client: DashboardClient): void {
 
 const dashboardClients = new Set<DashboardClient>();
 
+// Wire log broadcast now that broadcastToDashboards exists
+broadcastLog = (entry: LogEntry) => {
+  broadcastToDashboards({ type: 'log', data: entry });
+};
+
 function broadcastToDashboards(msg: { type: string; data?: unknown }): void {
   if (dashboardClients.size === 0) return;
   const data = JSON.stringify(msg);
@@ -1758,6 +1788,7 @@ wss.on('connection', (ws, req) => {
   console.log(`Dashboard client connected: ${client.id} from ${ip}`);
 
   ws.send(JSON.stringify({ type: 'state_sync', data: getStateSnapshot() }));
+  ws.send(JSON.stringify({ type: 'log_history', data: logBuffer }));
 
   ws.on('message', (data) => {
     const now = Date.now();
