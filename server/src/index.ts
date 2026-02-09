@@ -1739,6 +1739,117 @@ app.post('/api/upload', upload.array('files', MAX_UPLOAD_FILES), (req: Request, 
   console.log(`Upload: ${files.length} files, ${humanSize(totalSize)}, transfer ${transferId}`);
 });
 
+// ============ Anthropic API Token Proxy ============
+// Agents set ANTHROPIC_BASE_URL=http://localhost:3000/proxy/<agent-name>
+// All API calls are forwarded to Anthropic and token usage is logged.
+
+app.all('/proxy/:agentName/*', async (req: Request, res: Response) => {
+  const agentName = req.params.agentName;
+  const apiPath = '/' + (req.params as Record<string, string>)[0]; // everything after /proxy/:agentName/
+  const targetUrl = `https://api.anthropic.com${apiPath}`;
+
+  // Collect request body
+  const chunks: Buffer[] = [];
+  req.on('data', (chunk: Buffer) => chunks.push(chunk));
+  await new Promise<void>(resolve => req.on('end', resolve));
+  const bodyBuf = Buffer.concat(chunks);
+
+  let model = 'unknown';
+  let isStreaming = false;
+  try {
+    const parsed = JSON.parse(bodyBuf.toString());
+    if (parsed.model) model = parsed.model;
+    if (parsed.stream) isStreaming = true;
+  } catch { /* not JSON, that's fine */ }
+
+  // Forward headers (pass through auth, content-type, etc.)
+  const forwardHeaders: Record<string, string> = {};
+  for (const [key, val] of Object.entries(req.headers)) {
+    if (key === 'host' || key === 'connection' || key === 'content-length') continue;
+    if (typeof val === 'string') forwardHeaders[key] = val;
+  }
+
+  try {
+    const upstream = await fetch(targetUrl, {
+      method: req.method,
+      headers: forwardHeaders,
+      body: req.method !== 'GET' && req.method !== 'HEAD' ? bodyBuf : undefined,
+    });
+
+    // Copy response headers
+    upstream.headers.forEach((val, key) => {
+      if (key !== 'transfer-encoding' && key !== 'content-encoding') {
+        res.setHeader(key, val);
+      }
+    });
+    res.status(upstream.status);
+
+    if (isStreaming && upstream.body) {
+      // Stream the response back, accumulate for usage parsing
+      const reader = upstream.body.getReader();
+      let usageFound = false;
+      let inputTokens = 0;
+      let outputTokens = 0;
+
+      const pump = async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(value);
+
+          // Parse SSE events looking for message_delta with usage
+          if (!usageFound) {
+            const text = Buffer.from(value).toString();
+            // Look for usage in SSE data events
+            const lines = text.split('\n');
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+              try {
+                const evt = JSON.parse(data);
+                if (evt.type === 'message_start' && evt.message?.usage) {
+                  inputTokens = evt.message.usage.input_tokens || 0;
+                }
+                if (evt.type === 'message_delta' && evt.usage) {
+                  outputTokens = evt.usage.output_tokens || 0;
+                  usageFound = true;
+                }
+              } catch { /* partial JSON, skip */ }
+            }
+          }
+        }
+      };
+      await pump();
+      res.end();
+
+      const total = inputTokens + outputTokens;
+      if (inputTokens || outputTokens) {
+        console.log(`[TOKEN] ${agentName} called ${model}: ${inputTokens} input + ${outputTokens} output = ${total} total tokens`);
+      }
+    } else {
+      // Non-streaming: buffer full response
+      const respBuf = Buffer.from(await upstream.arrayBuffer());
+      res.end(respBuf);
+
+      // Parse usage from response body
+      try {
+        const respJson = JSON.parse(respBuf.toString());
+        if (respJson.usage) {
+          const { input_tokens = 0, output_tokens = 0 } = respJson.usage;
+          const total = input_tokens + output_tokens;
+          console.log(`[TOKEN] ${agentName} called ${model}: ${input_tokens} input + ${output_tokens} output = ${total} total tokens`);
+        }
+      } catch { /* not JSON */ }
+    }
+  } catch (err) {
+    console.error(`[TOKEN] ${agentName} proxy error: ${(err as Error).message}`);
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Proxy error', message: (err as Error).message });
+    }
+  }
+});
+
 // Static files (for built React app)
 app.use(express.static('public'));
 
