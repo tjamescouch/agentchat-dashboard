@@ -149,6 +149,8 @@ interface DashboardState {
   logs: LogEntry[];
   logsOpen: boolean;
   pulseOpen: boolean;
+  killSwitchOpen: boolean;
+  lockdown: boolean;
 }
 
 type DashboardAction =
@@ -178,7 +180,9 @@ type DashboardAction =
   | { type: 'CLEAR_LOGS' }
   | { type: 'TOGGLE_PULSE' }
   | { type: 'CONNECTION_ERROR'; error: string }
-  | { type: 'CONNECTING' };
+  | { type: 'CONNECTING' }
+  | { type: 'TOGGLE_KILLSWITCH' }
+  | { type: 'LOCKDOWN' };
 
 interface StateSyncPayload {
   agents: Agent[];
@@ -254,7 +258,9 @@ const initialState: DashboardState = {
   saveModal: null,
   logs: [],
   logsOpen: false,
-  pulseOpen: false
+  pulseOpen: false,
+  killSwitchOpen: false,
+  lockdown: false
 };
 
 function reducer(state: DashboardState, action: DashboardAction): DashboardState {
@@ -305,7 +311,7 @@ function reducer(state: DashboardState, action: DashboardAction): DashboardState
         [channel]: [...existingMsgs, action.data]
       };
       persistMessages(newMessages);
-      const newUnread = channel !== state.selectedChannel
+      const newUnread = channel !== state.selectedChannel && action.data.from !== '@server'
         ? { ...state.unreadCounts, [channel]: (state.unreadCounts[channel] || 0) + 1 }
         : state.unreadCounts;
       return { ...state, messages: newMessages, unreadCounts: newUnread };
@@ -402,6 +408,10 @@ function reducer(state: DashboardState, action: DashboardAction): DashboardState
       return { ...state, connectionStatus: 'error', connectionError: action.error };
     case 'CONNECTING':
       return { ...state, connectionStatus: 'connecting', connectionError: null };
+    case 'TOGGLE_KILLSWITCH':
+      return { ...state, killSwitchOpen: !state.killSwitchOpen };
+    case 'LOCKDOWN':
+      return { ...state, lockdown: true, killSwitchOpen: false };
     default:
       return state;
   }
@@ -563,6 +573,9 @@ function useWebSocket(dispatch: React.Dispatch<DashboardAction>): WsSendFn {
           case 'log_history':
             dispatch({ type: 'LOG_HISTORY', data: msg.data });
             break;
+          case 'lockdown':
+            dispatch({ type: 'LOCKDOWN' });
+            break;
           case 'error':
             console.error('Server error:', msg.data?.code, msg.data?.message);
             if (msg.data?.code === 'LURK_MODE') {
@@ -654,6 +667,13 @@ function TopBar({ state, dispatch, send }: { state: DashboardState; dispatch: Re
         {state.dashboardAgent && (
           <span className="dashboard-nick">as {state.dashboardAgent.nick}</span>
         )}
+        <button
+          className="killswitch-btn"
+          onClick={() => dispatch({ type: 'TOGGLE_KILLSWITCH' })}
+          title="Emergency Kill Switch"
+        >
+          KILL
+        </button>
         <button
           className={`pulse-btn ${state.pulseOpen ? 'active' : ''}`}
           onClick={() => dispatch({ type: 'TOGGLE_PULSE' })}
@@ -1585,6 +1605,107 @@ function SaveModal({ state, dispatch, send }: { state: DashboardState; dispatch:
   );
 }
 
+// ============ Kill Switch ============
+
+function KillSwitchModal({ state, dispatch }: { state: DashboardState; dispatch: React.Dispatch<DashboardAction> }) {
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (state.killSwitchOpen) {
+      setPin('');
+      setError('');
+      setLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [state.killSwitchOpen]);
+
+  if (!state.killSwitchOpen) return null;
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!pin || loading) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const baseUrl = import.meta.env.DEV ? 'http://localhost:3000' : '';
+      const resp = await fetch(`${baseUrl}/api/killswitch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+
+      if (resp.ok) {
+        dispatch({ type: 'LOCKDOWN' });
+      } else {
+        const data = await resp.json().catch(() => ({ error: 'Request failed' }));
+        setError(data.error || 'Invalid PIN');
+        setPin('');
+        setLoading(false);
+        inputRef.current?.focus();
+      }
+    } catch {
+      setError('Connection failed');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay killswitch-overlay" onClick={() => dispatch({ type: 'TOGGLE_KILLSWITCH' })}>
+      <div className="modal killswitch-modal" onClick={e => e.stopPropagation()}>
+        <div className="killswitch-icon">!</div>
+        <h3>KILL SWITCH</h3>
+        <p className="killswitch-warning">
+          This will terminate all agents, lock the screen, and shut down the server.
+        </p>
+        <form onSubmit={handleSubmit}>
+          <input
+            ref={inputRef}
+            type="password"
+            className="killswitch-pin-input"
+            value={pin}
+            onChange={e => setPin(e.target.value)}
+            placeholder="ENTER PIN"
+            maxLength={20}
+            autoComplete="off"
+            disabled={loading}
+          />
+          {error && <div className="killswitch-error">{error}</div>}
+          <div className="modal-actions">
+            <button type="button" className="modal-btn cancel" onClick={() => dispatch({ type: 'TOGGLE_KILLSWITCH' })}>
+              Cancel
+            </button>
+            <button type="submit" className="modal-btn killswitch-confirm" disabled={!pin || loading}>
+              {loading ? 'EXECUTING...' : 'CONFIRM LOCKDOWN'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function LockdownOverlay({ state }: { state: DashboardState }) {
+  if (!state.lockdown) return null;
+
+  return (
+    <div className="lockdown-overlay">
+      <div className="lockdown-card">
+        <div className="lockdown-icon">X</div>
+        <div className="lockdown-title">SYSTEM LOCKDOWN</div>
+        <div className="lockdown-subtitle">Kill switch activated</div>
+        <div className="lockdown-detail">
+          All agents terminated. Screen locked. Server shutting down.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============ Network Pulse ============
 
 interface PulseNode {
@@ -2188,6 +2309,8 @@ export default function App() {
         </div>
         <SendFileModal state={state} dispatch={dispatch} send={send} />
         <SaveModal state={state} dispatch={dispatch} send={send} />
+        <KillSwitchModal state={state} dispatch={dispatch} />
+        <LockdownOverlay state={state} />
         <ConnectionOverlay state={state} />
       </div>
     </DashboardContext.Provider>

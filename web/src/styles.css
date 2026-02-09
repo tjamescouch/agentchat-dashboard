@@ -1999,3 +1999,182 @@ body {
   color: var(--text-muted);
   font-size: 12px;
 }
+
+/* ============ Kill Switch ============ */
+
+.killswitch-btn {
+  padding: 6px 12px;
+  background: rgba(255, 68, 68, 0.15);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 4px;
+  letter-spacing: 1px;
+  transition: all 0.2s ease;
+}
+
+.killswitch-btn:hover {
+  background: rgba(255, 68, 68, 0.3);
+  box-shadow: 0 0 12px rgba(255, 68, 68, 0.4);
+  text-shadow: 0 0 8px rgba(255, 68, 68, 0.6);
+}
+
+.killswitch-overlay {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.killswitch-modal {
+  border-color: var(--accent-red);
+  box-shadow: 0 0 40px rgba(255, 68, 68, 0.15), 0 0 80px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  width: 360px;
+}
+
+.killswitch-modal h3 {
+  color: var(--accent-red);
+  font-size: 14px;
+  letter-spacing: 3px;
+  margin-bottom: 8px;
+}
+
+.killswitch-icon {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--accent-red);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-red);
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 auto 16px;
+  animation: error-pulse 2s ease-in-out infinite;
+}
+
+.killswitch-warning {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.killswitch-pin-input {
+  width: 100%;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--accent-red);
+  font-family: inherit;
+  font-size: 18px;
+  letter-spacing: 6px;
+  text-align: center;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.killswitch-pin-input:focus {
+  border-color: var(--accent-red);
+  box-shadow: 0 0 8px rgba(255, 68, 68, 0.3);
+}
+
+.killswitch-pin-input::placeholder {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+}
+
+.killswitch-error {
+  color: var(--accent-red);
+  font-size: 11px;
+  margin-top: 8px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-btn.killswitch-confirm {
+  background: var(--accent-red);
+  color: #000;
+  border-color: var(--accent-red);
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.modal-btn.killswitch-confirm:hover {
+  opacity: 0.9;
+  box-shadow: 0 0 12px rgba(255, 68, 68, 0.4);
+}
+
+.modal-btn.killswitch-confirm:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Lockdown Overlay */
+.lockdown-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  animation: lockdown-flash 0.5s ease-out forwards;
+}
+
+@keyframes lockdown-flash {
+  0% { background: rgba(255, 68, 68, 0.4); }
+  100% { background: rgba(0, 0, 0, 0.95); }
+}
+
+.lockdown-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 64px;
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent-red);
+  border-radius: 12px;
+  box-shadow: 0 0 60px rgba(255, 68, 68, 0.2), 0 0 120px rgba(0, 0, 0, 0.6);
+  animation: card-rise 0.4s ease-out;
+}
+
+.lockdown-icon {
+  width: 56px;
+  height: 56px;
+  border: 3px solid var(--accent-red);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-red);
+  font-size: 28px;
+  font-weight: 700;
+  animation: error-pulse 1.5s ease-in-out infinite;
+}
+
+.lockdown-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--accent-red);
+  text-shadow: 0 0 15px rgba(255, 68, 68, 0.5);
+}
+
+.lockdown-subtitle {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--accent-red);
+  opacity: 0.8;
+}
+
+.lockdown-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.6;
+}

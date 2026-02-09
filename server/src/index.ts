@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { execSync } from 'child_process';
 import path from 'path';
 import crypto from 'crypto';
 import multer from 'multer';
@@ -1795,6 +1796,68 @@ app.get('/api/health', (_req: Request, res: Response) => {
     status: 'ok',
     connected: state.connected
   });
+});
+
+// Kill switch endpoint
+const KILLSWITCH_PIN = '141414';
+const killswitchAttempts = new Map<string, { count: number; lastAttempt: number }>();
+
+app.post('/api/killswitch', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
+  const clientIp = req.ip || 'unknown';
+
+  // Brute-force protection: 5 attempts per IP, 60s lockout
+  const attempts = killswitchAttempts.get(clientIp);
+  if (attempts && attempts.count >= 5) {
+    if (Date.now() - attempts.lastAttempt < 60000) {
+      res.status(429).json({ error: 'Too many attempts, try again later' });
+      return;
+    }
+    killswitchAttempts.delete(clientIp);
+  }
+
+  const { pin } = req.body || {};
+  if (!pin || typeof pin !== 'string') {
+    res.status(400).json({ error: 'PIN required' });
+    return;
+  }
+
+  // Timing-safe PIN comparison
+  const pinBuf = Buffer.from(pin);
+  const correctBuf = Buffer.from(KILLSWITCH_PIN);
+  if (pinBuf.length !== correctBuf.length || !crypto.timingSafeEqual(pinBuf, correctBuf)) {
+    console.warn(`[KILLSWITCH] Failed PIN attempt from ${clientIp}`);
+    const current = killswitchAttempts.get(clientIp) || { count: 0, lastAttempt: 0 };
+    killswitchAttempts.set(clientIp, { count: current.count + 1, lastAttempt: Date.now() });
+    res.status(403).json({ error: 'Invalid PIN' });
+    return;
+  }
+
+  console.warn('[KILLSWITCH] ACTIVATED — initiating full lockdown');
+
+  // Broadcast lockdown to all dashboard clients
+  broadcastToDashboards({ type: 'lockdown', data: { message: 'KILL SWITCH ACTIVATED', ts: Date.now() } });
+
+  // Respond before killing everything
+  res.json({ status: 'lockdown_initiated' });
+
+  // Execute lockdown sequence after response flushes
+  setTimeout(() => {
+    // Kill Claude Code / agent processes
+    try { execSync('pkill -f "claude" || true', { timeout: 5000 }); } catch { /* ok */ }
+
+    // Lock macOS screen
+    try { execSync('pmset displaysleepnow', { timeout: 5000 }); } catch { /* ok */ }
+
+    // Close all dashboard WebSocket connections
+    dashboardClients.forEach(client => {
+      try { client.ws.close(1000, 'Lockdown'); } catch { /* ok */ }
+    });
+
+    // Shut down server
+    console.warn('[KILLSWITCH] Shutting down server');
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 3000); // Force exit fallback
+  }, 500);
 });
 
 // File upload endpoint
