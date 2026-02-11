@@ -631,6 +631,7 @@ function connectToAgentChat(id: Identity): void {
   agentChatWs.on('open', () => {
     console.log('Connected to AgentChat');
     state.connected = true;
+    state.agents.clear(); // Clear stale agents on reconnect
     state.dashboardAgent = { id: null, nick: id.nick };
     reconnectDelay = 1000;
 
