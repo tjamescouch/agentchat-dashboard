@@ -238,6 +238,30 @@ const persistMessages = (messages: Record<string, Message[]>) => {
   }, 1000);
 };
 
+const getSavedChannels = (): string[] => {
+  try {
+    const saved = localStorage.getItem('dashboardChannels');
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
+};
+
+const addSavedChannel = (channel: string) => {
+  try {
+    const channels = getSavedChannels();
+    if (!channels.includes(channel)) {
+      channels.push(channel);
+      localStorage.setItem('dashboardChannels', JSON.stringify(channels));
+    }
+  } catch (e) { console.warn('Failed to persist channel:', e); }
+};
+
+const removeSavedChannel = (channel: string) => {
+  try {
+    const channels = getSavedChannels().filter(c => c !== channel);
+    localStorage.setItem('dashboardChannels', JSON.stringify(channels));
+  } catch (e) { console.warn('Failed to remove channel:', e); }
+};
+
 // ============ Reducer ============
 
 const initialState: DashboardState = {
@@ -523,9 +547,17 @@ function useWebSocket(dispatch: React.Dispatch<DashboardAction>): WsSendFn {
           return;
         }
         switch (msg.type) {
-          case 'state_sync':
+          case 'state_sync': {
             dispatch({ type: 'STATE_SYNC', data: msg.data });
+            const serverChannels = new Set((msg.data.channels || []).map((c: { name: string }) => c.name));
+            const saved = getSavedChannels();
+            for (const ch of saved) {
+              if (!serverChannels.has(ch)) {
+                ws.current!.send(JSON.stringify({ type: 'join_channel', data: { channel: ch } }));
+              }
+            }
             break;
+          }
           case 'connected':
             dispatch({ type: 'CONNECTED', data: msg.data });
             break;
@@ -794,6 +826,7 @@ function Sidebar({ state, dispatch, sidebarWidth, send }: { state: DashboardStat
     const channelName = raw.startsWith('#') ? raw : `#${raw}`;
     if (!/^#[a-zA-Z0-9_-]+$/.test(channelName)) return;
     send({ type: 'join_channel', data: { channel: channelName } });
+    addSavedChannel(channelName);
     dispatch({ type: 'SELECT_CHANNEL', channel: channelName });
     setJoinInput('');
   };
