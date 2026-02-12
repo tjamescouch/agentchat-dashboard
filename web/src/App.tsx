@@ -915,15 +915,31 @@ function truncateAtWord(text: string, limit: number): string {
   return text.slice(0, boundary > 0 ? boundary : limit);
 }
 
-function MessageContent({ content }: { content: string }) {
+// Highlight search matches in HTML string (only in text nodes, not in tags/attributes)
+function highlightHtml(html: string, query: string): string {
+  if (!query) return html;
+  // Split HTML into tags and text segments, only highlight in text
+  return html.replace(/(<[^>]*>)|([^<]+)/g, (match, tag, text) => {
+    if (tag) return tag; // Don't touch HTML tags
+    // Escape regex special chars in query
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark class="search-highlight">$1</mark>');
+  });
+}
+
+function MessageContent({ content, searchQuery }: { content: string; searchQuery?: string }) {
   const [expanded, setExpanded] = useState(false);
   const needsTruncation = content.length > MSG_TRUNCATE_LENGTH;
   const displayText = needsTruncation && !expanded
     ? truncateAtWord(content, MSG_TRUNCATE_LENGTH) + '...'
     : content;
+  let html = renderMarkdown(displayText);
+  if (searchQuery) {
+    html = highlightHtml(html, searchQuery);
+  }
   return (
     <span className="content">
-      <span dangerouslySetInnerHTML={{ __html: renderMarkdown(displayText) }} />
+      <span dangerouslySetInnerHTML={{ __html: html }} />
       {needsTruncation && (
         <button
           className="expand-btn"
@@ -942,10 +958,72 @@ function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatc
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const allMessages = state.messages[state.selectedChannel] || [];
-  const messages = hideServer
+  const filteredByServer = hideServer
     ? allMessages.filter(m => m.from !== '@server')
     : allMessages;
+
+  // Search filtering
+  const searchLower = searchQuery.toLowerCase().trim();
+  const messages = searchLower
+    ? filteredByServer.filter(m => {
+        const nick = state.agents[m.from]?.nick || m.fromNick || m.from;
+        return m.content.toLowerCase().includes(searchLower) ||
+               nick.toLowerCase().includes(searchLower) ||
+               m.from.toLowerCase().includes(searchLower);
+      })
+    : filteredByServer;
+
+  const matchCount = searchLower ? messages.length : 0;
+
+  // Keyboard shortcut: Ctrl+F / Cmd+F to toggle search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        setShowSearch(prev => {
+          if (!prev) {
+            setTimeout(() => searchInputRef.current?.focus(), 50);
+          } else {
+            setSearchQuery('');
+            setActiveMatchIndex(0);
+          }
+          return !prev;
+        });
+      }
+      if (e.key === 'Escape' && showSearch) {
+        setShowSearch(false);
+        setSearchQuery('');
+        setActiveMatchIndex(0);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSearch]);
+
+  // Reset active match when query or results change
+  useEffect(() => {
+    setActiveMatchIndex(0);
+  }, [searchQuery]);
+
+  // Scroll to active match
+  useEffect(() => {
+    if (!searchLower || matchCount === 0) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const matchElements = container.querySelectorAll('.message.search-match');
+    const target = matchElements[activeMatchIndex];
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeMatchIndex, searchLower, matchCount]);
+
+  const nextMatch = () => setActiveMatchIndex(i => (i + 1) % Math.max(1, matchCount));
+  const prevMatch = () => setActiveMatchIndex(i => (i - 1 + matchCount) % Math.max(1, matchCount));
 
   const handleScroll = () => {
     const container = messagesContainerRef.current;
@@ -1017,15 +1095,70 @@ function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatc
     <div className="message-feed">
       <div className="feed-header">
         <span className="channel-title">{state.selectedChannel || 'Select a channel'}</span>
-        <label className="server-toggle">
-          <input
-            type="checkbox"
-            checked={hideServer}
-            onChange={(e) => setHideServer(e.target.checked)}
-          />
-          Hide @server
-        </label>
+        <div className="feed-header-right">
+          <button
+            className={`search-toggle-btn${showSearch ? ' active' : ''}`}
+            onClick={() => {
+              setShowSearch(prev => {
+                if (!prev) setTimeout(() => searchInputRef.current?.focus(), 50);
+                else { setSearchQuery(''); setActiveMatchIndex(0); }
+                return !prev;
+              });
+            }}
+            title="Search messages (Ctrl+F)"
+          >
+            &#x1F50D;
+          </button>
+          <label className="server-toggle">
+            <input
+              type="checkbox"
+              checked={hideServer}
+              onChange={(e) => setHideServer(e.target.checked)}
+            />
+            Hide @server
+          </label>
+        </div>
       </div>
+      {showSearch && (
+        <div className="search-bar">
+          <input
+            ref={searchInputRef}
+            type="text"
+            className="search-input"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (e.shiftKey) prevMatch(); else nextMatch();
+              }
+              if (e.key === 'Escape') {
+                setShowSearch(false);
+                setSearchQuery('');
+                setActiveMatchIndex(0);
+              }
+            }}
+            placeholder="Search messages..."
+          />
+          {searchLower && (
+            <span className="search-count">
+              {matchCount > 0 ? `${activeMatchIndex + 1}/${matchCount}` : '0 results'}
+            </span>
+          )}
+          {matchCount > 1 && (
+            <>
+              <button className="search-nav-btn" onClick={prevMatch} title="Previous (Shift+Enter)">&#x25B2;</button>
+              <button className="search-nav-btn" onClick={nextMatch} title="Next (Enter)">&#x25BC;</button>
+            </>
+          )}
+          <button
+            className="search-close-btn"
+            onClick={() => { setShowSearch(false); setSearchQuery(''); setActiveMatchIndex(0); }}
+          >
+            &#x2715;
+          </button>
+        </div>
+      )}
       <FileOfferBanner state={state} dispatch={dispatch} send={send} />
       <TransferBar state={state} />
       <div className="messages" ref={messagesContainerRef} onScroll={handleScroll}>
@@ -1036,8 +1169,12 @@ function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatc
             if (parsed._file) fileData = parsed;
           } catch { /* not JSON */ }
 
+          const isMatch = !!searchLower;
+          const isActiveMatch = isMatch && i === activeMatchIndex;
+          const msgClass = `message${isMatch ? ' search-match' : ''}${isActiveMatch ? ' search-active' : ''}`;
+
           return (
-            <div key={msg.id || i} className="message">
+            <div key={msg.id || i} className={msgClass}>
               <span className="time">[{formatTime(msg.ts)}]</span>
               <span className="from" style={{ color: agentColor(state.agents[msg.from]?.nick || msg.fromNick || msg.from) }}>
                 &lt;{state.agents[msg.from]?.nick || msg.fromNick || msg.from}&gt;
@@ -1067,7 +1204,7 @@ function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatc
                   </span>
                 </span>
               ) : (
-                <MessageContent content={msg.content} />
+                <MessageContent content={msg.content} searchQuery={searchLower} />
               )}
             </div>
           );
