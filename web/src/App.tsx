@@ -1,4 +1,16 @@
 import { useState, useEffect, useRef, useReducer, useCallback, createContext, FormEvent } from 'react';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+// ============ Markdown ============
+
+marked.setOptions({ breaks: false });
+
+function renderMarkdown(content: string): string {
+  const raw = marked.parse(content);
+  const html = typeof raw === 'string' ? raw : '';
+  return DOMPurify.sanitize(html);
+}
 
 // ============ Types ============
 
@@ -905,18 +917,21 @@ function truncateAtWord(text: string, limit: number): string {
 
 function MessageContent({ content }: { content: string }) {
   const [expanded, setExpanded] = useState(false);
-  if (content.length <= MSG_TRUNCATE_LENGTH) {
-    return <span className="content">{content}</span>;
-  }
+  const needsTruncation = content.length > MSG_TRUNCATE_LENGTH;
+  const displayText = needsTruncation && !expanded
+    ? truncateAtWord(content, MSG_TRUNCATE_LENGTH) + '...'
+    : content;
   return (
     <span className="content">
-      {expanded ? content : truncateAtWord(content, MSG_TRUNCATE_LENGTH) + '...'}
-      <button
-        className="expand-btn"
-        onClick={() => setExpanded(!expanded)}
-      >
-        {expanded ? 'Show less' : 'Show more'}
-      </button>
+      <span dangerouslySetInnerHTML={{ __html: renderMarkdown(displayText) }} />
+      {needsTruncation && (
+        <button
+          className="expand-btn"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
     </span>
   );
 }
