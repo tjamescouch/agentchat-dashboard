@@ -2110,12 +2110,16 @@ const MAX_WS_MESSAGE_SIZE = 64 * 1024;
 const MAX_CONNECTIONS_PER_IP = 10;
 const RATE_LIMIT_WINDOW_MS = 10000;
 const RATE_LIMIT_MAX_MESSAGES = 50;
+const TRUST_PROXY = process.env.TRUST_PROXY === 'true' || isRunningInContainer();
 const ipConnectionCounts = new Map<string, number>();
 
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_WS_MESSAGE_SIZE });
 
 wss.on('connection', (ws, req) => {
-  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  // Only trust X-Forwarded-For when behind a known proxy (TRUST_PROXY=true)
+  const ip = TRUST_PROXY
+    ? (req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown')
+    : (req.socket.remoteAddress || 'unknown');
   const currentCount = ipConnectionCounts.get(ip) || 0;
 
   if (currentCount >= MAX_CONNECTIONS_PER_IP) {
