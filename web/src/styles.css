@@ -2,6 +2,8 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--bg-secondary);
 }
 
 :root {
@@ -380,7 +382,8 @@ body {
   color: #c8c8c8;
   user-select: text;
   -webkit-user-select: text;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word; /* fallback for older browsers */
 }
 
 .message .content p {
@@ -393,55 +396,105 @@ body {
 
 .message .content code {
   background: rgba(0, 255, 65, 0.08);
-  padding: 1px 4px;
+  padding: 2px 6px;
   border-radius: 3px;
-  font-size: 12px;
+  font-size: 0.92em;
   color: var(--text-primary);
+  border: 1px solid rgba(0, 255, 65, 0.1);
 }
 
 .message .content pre {
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin: 4px 0;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 6px 0;
   overflow-x: auto;
   font-size: 12px;
+  line-height: 1.5;
+  tab-size: 2;
+  -moz-tab-size: 2;
+  position: relative;
+}
+
+/* Horizontal scroll fade hint for overflowing code blocks */
+.message .content pre::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  background: linear-gradient(to right, transparent, var(--bg-tertiary));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  border-radius: 0 6px 6px 0;
+}
+
+.message .content pre:hover::after {
+  opacity: 1;
+}
+
+/* Hide fade when scrolled to end (JS would need to manage this class) */
+.message .content pre.scrolled-end::after {
+  opacity: 0;
 }
 
 .message .content pre code {
   background: none;
   padding: 0;
   border-radius: 0;
+  border: none;
+  font-size: inherit;
 }
 
 .message .content a {
   color: var(--accent-blue);
   text-decoration: none;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .message .content a:hover {
   text-decoration: underline;
+  text-shadow: 0 0 8px rgba(0, 191, 255, 0.3);
 }
 
 .message .content blockquote {
-  border-left: 2px solid var(--border);
-  padding-left: 10px;
-  margin: 4px 0;
+  border-left: 3px solid rgba(0, 191, 255, 0.4);
+  padding: 6px 12px;
+  margin: 6px 0;
   color: var(--text-muted);
+  font-style: italic;
+  background: rgba(0, 191, 255, 0.03);
+  border-radius: 0 4px 4px 0;
 }
 
 .message .content ul, .message .content ol {
   margin: 4px 0;
-  padding-left: 20px;
+  padding-left: 24px;
+}
+
+.message .content li {
+  margin-bottom: 2px;
+}
+
+.message .content li::marker {
+  color: var(--text-muted);
 }
 
 .message .content h1, .message .content h2, .message .content h3,
 .message .content h4, .message .content h5, .message .content h6 {
-  margin: 4px 0 2px;
-  font-size: 13px;
+  margin: 8px 0 4px;
   color: var(--text-primary);
+  font-weight: 600;
 }
+
+.message .content h1 { font-size: 16px; }
+.message .content h2 { font-size: 15px; }
+.message .content h3 { font-size: 14px; }
+.message .content h4, .message .content h5, .message .content h6 { font-size: 13px; }
 
 .message .content img {
   max-width: 100%;
@@ -450,18 +503,28 @@ body {
 
 .message .content table {
   border-collapse: collapse;
-  margin: 4px 0;
+  margin: 6px 0;
   font-size: 12px;
+  width: 100%;
+  max-width: 100%;
+  display: block;
+  overflow-x: auto;
 }
 
 .message .content th, .message .content td {
   border: 1px solid var(--border);
-  padding: 4px 8px;
+  padding: 6px 10px;
 }
 
 .message .content th {
-  background: var(--bg-tertiary);
+  background: rgba(0, 255, 65, 0.06);
   color: var(--text-primary);
+  font-weight: 500;
+  text-align: left;
+}
+
+.message .content tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .expand-btn {
@@ -1967,7 +2030,8 @@ body {
 
 .log-line {
   white-space: pre-wrap;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   color: var(--text-muted);
 }
 
@@ -2124,6 +2188,95 @@ body {
 
 .connection-step.done .step-dot {
   background: var(--text-secondary);
+}
+
+/* ============ Text Selection ============ */
+::selection {
+  background: rgba(0, 255, 65, 0.25);
+  color: #fff;
+}
+
+::-moz-selection {
+  background: rgba(0, 255, 65, 0.25);
+  color: #fff;
+}
+
+/* ============ Focus-Visible for Keyboard Nav ============ */
+*:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+/* Remove focus outline on mouse click */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Input fields get a subtler focus */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--text-primary) !important;
+  box-shadow: 0 0 0 1px var(--text-primary), 0 0 8px rgba(0, 255, 65, 0.2);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+}
+
+/* ============ Smooth Transitions ============ */
+button, .list-item, .channel-tag, .mode-btn, .logs-btn, .pulse-btn {
+  transition: all 0.15s ease;
+}
+
+/* ============ Better Empty States ============ */
+.empty {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* ============ Message Hover ============ */
+.message:hover {
+  background: rgba(255, 255, 255, 0.015);
+  border-radius: 3px;
+}
+
+/* ============ Sidebar Section Dividers ============ */
+.section:last-child {
+  border-bottom: none;
+}
+
+/* ============ Code Language Label (when present) ============ */
+.message .content pre[data-lang]::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.5;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+}
+
+/* ============ Status Badge Uppercase Fix ============ */
+.status-badge {
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+/* ============ Tooltip-style nick hover ============ */
+.nick {
+  position: relative;
+}
+
+/* ============ Input Bar Multiline Polish ============ */
+.input-bar textarea {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 /* Responsive */
