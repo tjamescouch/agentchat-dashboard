@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useReducer, useCallback, createContext, FormEvent } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 // ============ Types ============
 
@@ -978,7 +979,7 @@ function MessageFeed({ state, dispatch, send }: { state: DashboardState; dispatc
                   </span>
                 </span>
               ) : (
-                <span className="content">{msg.content}</span>
+                <span className="content"><ReactMarkdown>{msg.content}</ReactMarkdown></span>
               )}
             </div>
           );
