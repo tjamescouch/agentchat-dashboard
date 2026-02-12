@@ -875,12 +875,14 @@ function Sidebar({ state, dispatch, sidebarWidth, send }: { state: DashboardStat
           <button type="submit" className="channel-join-btn" title="Join channel">+</button>
         </form>
         <div className="list">
-          {channels.map(channel => (
+          {channels.map((channel, idx) => (
             <div
               key={channel.name}
               className={`list-item ${state.selectedChannel === channel.name ? 'selected' : ''}`}
               onClick={() => dispatch({ type: 'SELECT_CHANNEL', channel: channel.name })}
+              title={idx < 9 ? `Alt+${idx + 1}` : undefined}
             >
+              {idx < 9 && <kbd className="shortcut-hint">{idx + 1}</kbd>}
               <span className="channel-name">{channel.name}</span>
               {state.activityCounts[channel.name] > 0 && (
                 <span className="activity-badge" title="Join/leave activity">{state.activityCounts[channel.name]}</span>
@@ -2515,6 +2517,86 @@ export default function App() {
   const sidebar = useResizable(220, 160, 400, 'left');
   const rightPanel = useResizable(280, 200, 500, 'right');
   const logsPanel = useResizable(200, 80, 500, 'bottom');
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't fire shortcuts when typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
+
+      // Alt+1..9: switch channel by index
+      if (e.altKey && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        const channels = Object.values(state.channels);
+        const idx = parseInt(e.key) - 1;
+        if (channels[idx]) {
+          dispatch({ type: 'SELECT_CHANNEL', channel: channels[idx].name });
+        }
+        return;
+      }
+
+      // Alt+L: toggle logs
+      if (e.altKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        dispatch({ type: 'TOGGLE_LOGS' });
+        return;
+      }
+
+      // Alt+P: toggle network pulse
+      if (e.altKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        dispatch({ type: 'TOGGLE_PULSE' });
+        return;
+      }
+
+      // Alt+K: toggle kill switch
+      if (e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        dispatch({ type: 'TOGGLE_KILLSWITCH' });
+        return;
+      }
+
+      // Alt+S: focus message input
+      if (e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        const textarea = document.querySelector('.input-bar textarea') as HTMLTextAreaElement;
+        textarea?.focus();
+        return;
+      }
+
+      // Alt+←/→: prev/next channel
+      if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        const channels = Object.values(state.channels);
+        if (channels.length === 0) return;
+        const currentIdx = channels.findIndex(c => c.name === state.selectedChannel);
+        let nextIdx: number;
+        if (e.key === 'ArrowRight') {
+          nextIdx = (currentIdx + 1) % channels.length;
+        } else {
+          nextIdx = (currentIdx - 1 + channels.length) % channels.length;
+        }
+        dispatch({ type: 'SELECT_CHANNEL', channel: channels[nextIdx].name });
+        return;
+      }
+
+      // Escape: close modals/panels (only when not in input)
+      if (e.key === 'Escape' && !isInput) {
+        if (state.killSwitchOpen) {
+          dispatch({ type: 'TOGGLE_KILLSWITCH' });
+        } else if (state.sendModal) {
+          dispatch({ type: 'HIDE_SEND_MODAL' });
+        } else if (state.saveModal) {
+          dispatch({ type: 'HIDE_SAVE_MODAL' });
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state.channels, state.selectedChannel, state.killSwitchOpen, state.sendModal, state.saveModal, dispatch]);
 
   return (
     <DashboardContext.Provider value={{ state, dispatch, send }}>
