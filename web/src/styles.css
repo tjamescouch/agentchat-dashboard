@@ -5,20 +5,21 @@
 }
 
 :root {
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #111111;
-  --bg-tertiary: #1a1a1a;
-  --text-primary: #00ff41;
-  --text-secondary: #00cc33;
-  --text-muted: #666666;
-  --accent-blue: #00bfff;
-  --accent-yellow: #ffff00;
-  --accent-red: #ff4444;
-  --border: #333333;
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2d2d30;
+  --text-primary: #d4d4d4;
+  --text-secondary: #9cdcfe;
+  --text-muted: #808080;
+  --accent-blue: #4fc1ff;
+  --accent-yellow: #dcdcaa;
+  --accent-red: #f44747;
+  --accent-green: #4ec9b0;
+  --border: #3e3e42;
 }
 
 body {
-  font-family: 'IBM Plex Mono', 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'IBM Plex Mono', 'Consolas', sans-serif;
   font-size: 13px;
   line-height: 1.6;
   background: var(--bg-primary);
@@ -2372,98 +2373,229 @@ body {
   line-height: 1.6;
 }
 
-/* ============ VM Window Chrome ============ */
+/* ============ VM Window Chrome (VMware-style) ============ */
 
 .vm-window {
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  border: 1px solid #444;
-  border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
   position: relative;
+  background: #2d2d2d;
 }
 
-.vm-titlebar {
+/* VMware-style menu bar */
+.vm-menubar {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  min-height: 28px;
+  background: linear-gradient(180deg, #3c3c3c 0%, #323233 100%);
+  border-bottom: 1px solid #222;
+  padding: 0 8px;
+  user-select: none;
+  font-size: 12px;
+  color: #ccc;
+  gap: 0;
+}
+
+.vm-menu-item {
+  padding: 4px 10px;
+  cursor: default;
+  border-radius: 2px;
+  transition: background 0.1s;
+}
+
+.vm-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.vm-menu-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #888;
+}
+
+/* VMware-style tab bar */
+.vm-tabbar {
+  display: flex;
+  align-items: stretch;
+  height: 32px;
+  min-height: 32px;
+  background: #333;
+  border-bottom: 1px solid #222;
+  padding: 0;
+}
+
+.vm-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  border-top: 2px solid #007acc;
+  font-size: 12px;
+  color: #ddd;
+  cursor: default;
+  min-width: 180px;
+}
+
+.vm-tab-icon {
+  width: 16px;
+  height: 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--accent-green);
+}
+
+.vm-tab-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vm-tab-status {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+.vm-tab-status.running {
+  background: rgba(78, 201, 176, 0.2);
+  color: var(--accent-green);
+}
+
+.vm-tab-status.stopped {
+  background: rgba(255, 68, 68, 0.2);
+  color: #ff4444;
+}
+
+/* VMware-style toolbar */
+.vm-toolbar {
   display: flex;
   align-items: center;
   height: 36px;
   min-height: 36px;
-  background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
-  border-bottom: 1px solid #1a1a1a;
-  padding: 0 12px;
-  gap: 8px;
-  user-select: none;
-  -webkit-app-region: drag;
+  background: linear-gradient(180deg, #3d3d3d 0%, #333 100%);
+  border-bottom: 1px solid #222;
+  padding: 0 8px;
+  gap: 2px;
 }
 
-.vm-traffic-lights {
+.vm-toolbar-btn {
+  width: 28px;
+  height: 28px;
   display: flex;
-  gap: 7px;
   align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
 }
 
-.vm-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 0.5px solid rgba(0, 0, 0, 0.2);
-  position: relative;
+.vm-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ddd;
 }
 
-.vm-dot.close {
-  background: #ff5f57;
+.vm-toolbar-btn.active {
+  background: rgba(0, 122, 204, 0.15);
+  border-color: rgba(0, 122, 204, 0.3);
+  color: #007acc;
 }
 
-.vm-dot.minimize {
-  background: #ffbd2e;
+.vm-toolbar-btn.danger {
+  color: #ff4444;
 }
 
-.vm-dot.maximize {
-  background: #28c840;
+.vm-toolbar-btn.danger:hover {
+  background: rgba(255, 68, 68, 0.15);
+  border-color: rgba(255, 68, 68, 0.3);
 }
 
-.vm-dot:hover {
-  filter: brightness(1.2);
+.vm-toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: #555;
+  margin: 0 4px;
 }
 
-.vm-title {
-  flex: 1;
-  text-align: center;
-  font-size: 12px;
-  color: #999;
-  letter-spacing: 0.5px;
-  font-weight: 500;
-}
-
-.vm-title .vm-status-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin-right: 6px;
-  vertical-align: middle;
-}
-
-.vm-title .vm-status-dot.online {
-  background: #28c840;
-  box-shadow: 0 0 6px rgba(40, 200, 64, 0.5);
-}
-
-.vm-title .vm-status-dot.offline {
-  background: #ff5f57;
-  box-shadow: 0 0 6px rgba(255, 95, 87, 0.5);
+.vm-toolbar-label {
+  font-size: 11px;
+  color: #888;
+  margin-left: 4px;
+  margin-right: 8px;
 }
 
 .vm-content {
   flex: 1;
   overflow: hidden;
   position: relative;
+  border: 1px solid var(--border);
+  margin: 0 2px;
+  background: var(--bg-primary);
 }
 
-/* CRT Scanline Overlay */
+/* VMware-style status bar */
+.vm-statusbar {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  min-height: 24px;
+  background: #007acc;
+  border-top: none;
+  padding: 0 12px;
+  font-size: 11px;
+  color: #fff;
+  gap: 16px;
+}
+
+.vm-statusbar-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vm-statusbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.vm-statusbar-dot.green {
+  background: var(--accent-green);
+  box-shadow: 0 0 4px rgba(78, 201, 176, 0.4);
+}
+
+.vm-statusbar-dot.red {
+  background: #ff4444;
+  box-shadow: 0 0 4px rgba(255, 68, 68, 0.4);
+}
+
+.vm-statusbar-right {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+}
+
+/* Very subtle scanline hint — barely visible */
 .crt-overlay {
   pointer-events: none;
   position: fixed;
@@ -2472,19 +2604,10 @@ body {
   background: repeating-linear-gradient(
     0deg,
     transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.03) 2px,
-    rgba(0, 0, 0, 0.03) 4px
+    transparent 4px,
+    rgba(0, 0, 0, 0.008) 4px,
+    rgba(0, 0, 0, 0.008) 8px
   );
-  mix-blend-mode: multiply;
-}
-
-/* Subtle vignette */
-.crt-overlay::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at center, transparent 65%, rgba(0, 0, 0, 0.3) 100%);
 }
 
 /* ============ Boot Sequence ============ */
@@ -2493,13 +2616,13 @@ body {
   position: fixed;
   inset: 0;
   z-index: 100000;
-  background: #0a0a0a;
+  background: #1e1e1e;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
   padding: 80px;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Segoe UI', -apple-system, sans-serif;
   overflow: hidden;
 }
 
@@ -2526,7 +2649,7 @@ body {
 }
 
 .boot-line.ok {
-  color: var(--text-primary);
+  color: var(--accent-green);
 }
 
 .boot-line.warn {
@@ -2546,7 +2669,7 @@ body {
   display: inline-block;
   width: 8px;
   height: 14px;
-  background: var(--text-primary);
+  background: var(--accent-blue);
   animation: blink-cursor 1s step-end infinite;
   vertical-align: text-bottom;
   margin-left: 2px;
@@ -2775,4 +2898,46 @@ body {
   background: rgba(255, 189, 46, 0.3);
   box-shadow: 0 0 12px rgba(255, 189, 46, 0.4);
   text-shadow: 0 0 8px rgba(255, 189, 46, 0.6);
+}
+
+/* ============ VM-style Agent Cards (Hypervisor) ============ */
+
+.sidebar .section h3 {
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.sidebar .list-item {
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+}
+
+/* Override green dots with proper VM power LEDs */
+.sidebar .dot.online {
+  background: var(--accent-green);
+  box-shadow: 0 0 4px rgba(78, 201, 176, 0.4);
+}
+
+.sidebar .dot.offline {
+  background: var(--text-muted);
+  box-shadow: none;
+}
+
+/* VM status indicators */
+.verified-badge {
+  color: var(--accent-green) !important;
+}
+
+.unverified-badge {
+  color: var(--accent-yellow) !important;
+}
+
+/* Messages area should still use monospace */
+.content, .message, .msg-content, .msg-text, .msg-body {
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+}
+
+/* Override the hacker-green on messages */
+.message .nick {
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  font-weight: 600;
 }

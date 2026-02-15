@@ -1859,26 +1859,20 @@ function SaveModal({ state, dispatch, send }: { state: DashboardState; dispatch:
 // ============ Boot Sequence ============
 
 const BOOT_LINES = [
-  { text: 'AgentDash VM v2.1.0', cls: 'ok', delay: 0 },
-  { text: 'BIOS: Initializing hardware abstraction layer...', cls: 'dim', delay: 80 },
-  { text: 'Memory: 256MB virtual allocated', cls: 'dim', delay: 120 },
-  { text: 'CPU: AgentCore x86_64 @ 3.2GHz', cls: 'dim', delay: 160 },
-  { text: 'Network: Scanning for AgentChat server...', cls: 'dim', delay: 250 },
-  { text: '', cls: 'dim', delay: 300 },
-  { text: '  Connecting to wss://agentchat-server.fly.dev', cls: 'ok', delay: 350 },
-  { text: '  WebSocket handshake...      [  OK  ]', cls: 'ok', delay: 500 },
-  { text: '  Identity negotiation...     [  OK  ]', cls: 'ok', delay: 600 },
-  { text: '  Channel sync...             [  OK  ]', cls: 'ok', delay: 700 },
-  { text: '', cls: 'dim', delay: 750 },
-  { text: 'Loading dashboard modules:', cls: 'dim', delay: 800 },
-  { text: '  MessageFeed       ......... loaded', cls: 'ok', delay: 880 },
-  { text: '  AgentPresence     ......... loaded', cls: 'ok', delay: 930 },
-  { text: '  ProposalTracker   ......... loaded', cls: 'ok', delay: 980 },
-  { text: '  SkillsMarketplace ......... loaded', cls: 'ok', delay: 1020 },
-  { text: '  KillSwitch        ......... armed', cls: 'warn', delay: 1060 },
-  { text: '  NetworkPulse      ......... loaded', cls: 'ok', delay: 1100 },
-  { text: '', cls: 'dim', delay: 1150 },
-  { text: 'All systems nominal. Dashboard ready.', cls: 'ok', delay: 1250 },
+  { text: 'AgentDash Hypervisor v2.1', cls: 'ok', delay: 0 },
+  { text: '', cls: 'dim', delay: 80 },
+  { text: 'Initializing virtual infrastructure...', cls: 'dim', delay: 100 },
+  { text: 'Connecting to AgentChat network...', cls: 'dim', delay: 300 },
+  { text: '  Server: wss://agentchat-server.fly.dev', cls: 'dim', delay: 400 },
+  { text: '  Status: Connected', cls: 'ok', delay: 600 },
+  { text: '', cls: 'dim', delay: 650 },
+  { text: 'Loading modules:', cls: 'dim', delay: 700 },
+  { text: '  Agent Manager        ✓', cls: 'ok', delay: 780 },
+  { text: '  Channel Monitor      ✓', cls: 'ok', delay: 830 },
+  { text: '  Proposal Tracker     ✓', cls: 'ok', delay: 880 },
+  { text: '  Reputation Engine    ✓', cls: 'ok', delay: 930 },
+  { text: '', cls: 'dim', delay: 980 },
+  { text: 'Ready.', cls: 'ok', delay: 1050 },
 ];
 
 function BootSequence({ onComplete }: { onComplete: () => void }) {
@@ -2765,16 +2759,44 @@ export default function App() {
     <DashboardContext.Provider value={{ state, dispatch, send }}>
       {!booted && <BootSequence onComplete={handleBootComplete} />}
       <div className="vm-window">
-        <div className="vm-titlebar">
-          <div className="vm-traffic-lights">
-            <div className="vm-dot close" />
-            <div className="vm-dot minimize" />
-            <div className="vm-dot maximize" />
+        <div className="vm-menubar">
+          <span className="vm-menu-item">File</span>
+          <span className="vm-menu-item">Edit</span>
+          <span className="vm-menu-item">VM</span>
+          <span className="vm-menu-item">View</span>
+          <span className="vm-menu-item">Help</span>
+          <div className="vm-menu-right">
+            AgentDash v2.1
           </div>
-          <div className="vm-title">
-            <span className={`vm-status-dot ${state.connected ? 'online' : 'offline'}`} />
-            AgentDash — {state.connected ? 'Connected' : 'Disconnected'} — {Object.values(state.agents).filter(a => a.online).length} agents online
+        </div>
+        <div className="vm-tabbar">
+          <div className="vm-tab">
+            <div className="vm-tab-icon">▶</div>
+            <span className="vm-tab-label">AgentChat Network</span>
+            <span className={`vm-tab-status ${state.connected ? 'running' : 'stopped'}`}>
+              {state.connected ? 'Running' : 'Stopped'}
+            </span>
           </div>
+        </div>
+        <div className="vm-toolbar">
+          <button className="vm-toolbar-btn" title="Power On" onClick={() => {}}>⏻</button>
+          <button className="vm-toolbar-btn" title="Suspend">⏸</button>
+          <div className="vm-toolbar-sep" />
+          <button className="vm-toolbar-btn" title="Snapshot">📷</button>
+          <button className="vm-toolbar-btn" title="Settings">⚙</button>
+          <div className="vm-toolbar-sep" />
+          <button
+            className="vm-toolbar-btn active"
+            title="Agent Control"
+            onClick={() => dispatch({ type: 'TOGGLE_AGENT_CONTROL' })}
+          >👥</button>
+          <span className="vm-toolbar-label">Agents: {Object.values(state.agents).filter(a => a.online).length}</span>
+          <div className="vm-toolbar-sep" />
+          <button
+            className="vm-toolbar-btn danger"
+            title="Kill Switch"
+            onClick={() => dispatch({ type: 'TOGGLE_KILLSWITCH' })}
+          >⛔</button>
         </div>
         <div className="vm-content">
           <div className="dashboard">
@@ -2808,6 +2830,21 @@ export default function App() {
             <AgentControlModal state={state} dispatch={dispatch} send={send} />
             <LockdownOverlay state={state} />
             <ConnectionOverlay state={state} />
+          </div>
+        </div>
+        <div className="vm-statusbar">
+          <div className="vm-statusbar-item">
+            <div className={`vm-statusbar-dot ${state.connected ? 'green' : 'red'}`} />
+            {state.connected ? 'Connected' : 'Disconnected'}
+          </div>
+          <div className="vm-statusbar-item">
+            Agents: {Object.values(state.agents).filter(a => a.online).length}
+          </div>
+          <div className="vm-statusbar-item">
+            Channels: {Object.keys(state.channels).length}
+          </div>
+          <div className="vm-statusbar-right">
+            <span>ws://agentchat-server.fly.dev</span>
           </div>
         </div>
         <div className="crt-overlay" />
