@@ -1933,12 +1933,26 @@ function BootSequence({ onComplete }: { onComplete: () => void }) {
 
 // ============ Agent Control Modal ============
 
+const MODEL_OPTIONS = [
+  'claude-sonnet-4-20250514',
+  'claude-opus-4-20250514',
+  'claude-3-5-haiku-20241022',
+];
+
+const RUNTIME_OPTIONS = [
+  'claude-code',
+  'raw-api',
+  'thesystem',
+];
+
 function AgentControlModal({ state, dispatch, send }: { state: DashboardState; dispatch: React.Dispatch<DashboardAction>; send: WsSendFn }) {
   const [passphrase, setPassphrase] = useState('');
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const [action, setAction] = useState<'stop' | 'start' | null>(null);
+  const [model, setModel] = useState(MODEL_OPTIONS[0]);
+  const [runtime, setRuntime] = useState(RUNTIME_OPTIONS[0]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<'stop' | 'start' | null>(null);
   const [success, setSuccess] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -1946,9 +1960,11 @@ function AgentControlModal({ state, dispatch, send }: { state: DashboardState; d
     if (state.agentControlOpen) {
       setPassphrase('');
       setSelectedAgent(null);
-      setAction(null);
+      setModel(MODEL_OPTIONS[0]);
+      setRuntime(RUNTIME_OPTIONS[0]);
       setError('');
       setLoading(false);
+      setLoadingAction(null);
       setSuccess('');
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -1974,6 +1990,7 @@ function AgentControlModal({ state, dispatch, send }: { state: DashboardState; d
     }
 
     setLoading(true);
+    setLoadingAction(actionType);
     setError('');
     setSuccess('');
 
@@ -1985,6 +2002,7 @@ function AgentControlModal({ state, dispatch, send }: { state: DashboardState; d
         body: JSON.stringify({
           passphrase,
           agentId: selectedAgent,
+          ...(actionType === 'start' ? { model, runtime } : {}),
         }),
       });
 
@@ -2000,11 +2018,13 @@ function AgentControlModal({ state, dispatch, send }: { state: DashboardState; d
         setError(data.error || `Failed to ${actionType} agent`);
         setPassphrase('');
         setLoading(false);
+        setLoadingAction(null);
         inputRef.current?.focus();
       }
     } catch {
       setError('Connection failed');
       setLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -2039,6 +2059,37 @@ function AgentControlModal({ state, dispatch, send }: { state: DashboardState; d
           <p className="agent-control-warning">No agents currently online.</p>
         )}
 
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>MODEL</label>
+            <select
+              className="agent-control-select"
+              value={model}
+              onChange={e => setModel(e.target.value)}
+              disabled={loading}
+              style={{ marginBottom: 0 }}
+            >
+              {MODEL_OPTIONS.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>RUNTIME</label>
+            <select
+              className="agent-control-select"
+              value={runtime}
+              onChange={e => setRuntime(e.target.value)}
+              disabled={loading}
+              style={{ marginBottom: 0 }}
+            >
+              {RUNTIME_OPTIONS.map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <input
           ref={inputRef}
           type="password"
@@ -2049,7 +2100,7 @@ function AgentControlModal({ state, dispatch, send }: { state: DashboardState; d
           autoComplete="off"
           disabled={loading}
         />
-        <div className="passphrase-hint">Min 8 characters required</div>
+        <div className="passphrase-hint">Min 8 characters. Verified against SHA-256 hash.</div>
 
         {error && <div className="agent-control-error">{error}</div>}
         {success && <div style={{ color: '#28c840', fontSize: '11px', marginTop: '8px' }}>{success}</div>}
@@ -2068,7 +2119,7 @@ function AgentControlModal({ state, dispatch, send }: { state: DashboardState; d
             disabled={!selectedAgent || !passphrase || passphrase.length < 8 || loading}
             onClick={() => handleAction('stop')}
           >
-            {loading && action === 'stop' ? 'STOPPING...' : 'STOP'}
+            {loading && loadingAction === 'stop' ? 'STOPPING...' : 'STOP AGENT'}
           </button>
           <button
             type="button"
@@ -2076,7 +2127,7 @@ function AgentControlModal({ state, dispatch, send }: { state: DashboardState; d
             disabled={!passphrase || passphrase.length < 8 || loading}
             onClick={() => handleAction('start')}
           >
-            {loading && action === 'start' ? 'STARTING...' : 'START'}
+            {loading && loadingAction === 'start' ? 'STARTING...' : 'START AGENT'}
           </button>
         </div>
       </div>
