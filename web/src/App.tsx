@@ -794,12 +794,7 @@ function TopBar({ state, dispatch, send }: { state: DashboardState; dispatch: Re
         >
           KILL
         </button>
-        <button
-          className={`pulse-btn ${state.pulseOpen ? 'active' : ''}`}
-          onClick={() => dispatch({ type: 'TOGGLE_PULSE' })}
-        >
-          PULSE
-        </button>
+        {/* PULSE button disabled */}
         <button
           className={`mode-btn ${state.mode}`}
           onClick={() => {
