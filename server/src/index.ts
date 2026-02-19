@@ -304,6 +304,7 @@ const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB per chunk (uses FILE_CHUNK type with 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB total
 const MAX_UPLOAD_FILES = 10;
 const TRANSFER_TTL = 30 * 60 * 1000; // 30 minute cleanup
+const AGENT_OFFLINE_TTL = 60 * 1000; // 1 minute until offline agents disappear
 
 interface FileInfo {
   name: string;
@@ -2350,6 +2351,27 @@ setInterval(() => {
     }
   });
 }, 30000);
+
+// Offline agent GC
+setInterval(() => {
+  const now = Date.now();
+  let changed = false;
+  for (const [id, agent] of state.agents.entries()) {
+    if (!agent.online && now - agent.lastSeen > AGENT_OFFLINE_TTL) {
+      // Ensure removed from any channel member sets (defensive)
+      for (const ch of state.channels.values()) ch.members.delete(id);
+      state.agents.delete(id);
+      changed = true;
+    }
+  }
+  if (changed) {
+    broadcastToDashboards({
+      type: 'agents_update',
+      data: [...state.agents.values()].map(a => ({ ...a, channels: [...a.channels] }))
+    });
+    broadcastToDashboards({ type: 'channel_update', data: getChannelsSnapshot() });
+  }
+}, 5000);
 
 // ============ Startup ============
 

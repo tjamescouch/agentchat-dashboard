@@ -917,6 +917,8 @@ function Sidebar({ state, dispatch, sidebarWidth, send }: { state: DashboardStat
     return (a.nick || a.id).localeCompare(b.nick || b.id);
   });
 
+  const onlineAgents = agents.filter(a => a.online);
+
   const getDisplayName = (agent: Agent): string => {
     const nick = agent.nick || agent.id;
     const shortId = agent.id.replace('@', '').slice(0, 6);
@@ -941,7 +943,7 @@ function Sidebar({ state, dispatch, sidebarWidth, send }: { state: DashboardStat
   return (
     <div className="sidebar" style={{ width: sidebarWidth }}>
       <div className="section">
-        <h3>AGENTS ({agents.length})</h3>
+        <h3>AGENTS ({onlineAgents.length})</h3>
         <div className="list">
           {agents.map(agent => (
             <div
