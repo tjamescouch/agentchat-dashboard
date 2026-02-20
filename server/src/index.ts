@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 import nacl from 'tweetnacl';
 import tweetnaclUtil from 'tweetnacl-util';
+import { parseSpendMessage } from './spend-parser.js';
 
 const { encodeBase64, decodeBase64 } = tweetnaclUtil;
 
