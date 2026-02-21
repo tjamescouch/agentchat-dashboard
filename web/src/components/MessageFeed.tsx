@@ -324,7 +324,6 @@ export function MessageFeed({ state, dispatch, send }: { state: DashboardState; 
           disabled={state.mode === 'lurk'}
           style={{ resize: 'vertical', minHeight: '36px', maxHeight: '200px' }}
         />
-        <button type="submit" disabled={state.mode === 'lurk'}>Send</button>
       </form>
     </div>
   );
