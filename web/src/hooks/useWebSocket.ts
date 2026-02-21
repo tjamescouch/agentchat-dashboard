@@ -1,3 +1,4 @@
+import { getOrCreateIdentity } from '../identity';
 import { useState, useEffect, useRef } from 'react';
 import type { DashboardAction, WsSendFn } from '../types';
 import { getSavedChannels } from '../reducer';
@@ -21,17 +22,27 @@ export function useWebSocket(dispatch: React.Dispatch<DashboardAction>): WsSendF
         console.log('WebSocket connected');
         reconnectDelay = 2000;
         const savedMode = localStorage.getItem('dashboardMode');
+
+        // Always ensure identity exists before connecting in participate mode
         if (savedMode && savedMode !== 'lurk') {
           const storedNick = localStorage.getItem('dashboardNick');
-          const storedIdentity = localStorage.getItem('dashboardIdentity');
-          ws.current!.send(JSON.stringify({
-            type: 'set_mode',
-            data: {
-              mode: savedMode,
-              nick: storedNick || undefined,
-              identity: storedIdentity ? JSON.parse(storedIdentity) : undefined
+
+          getOrCreateIdentity().then(identity => {
+            if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+              ws.current.send(JSON.stringify({
+                type: 'set_mode',
+                data: {
+                  mode: savedMode,
+                  nick: storedNick || undefined,
+                  identity
+                }
+              }));
             }
-          }));
+          }).catch(err => {
+            console.error('Failed to generate identity:', err);
+            // Fall back to lurk mode if crypto fails
+            localStorage.setItem('dashboardMode', 'lurk');
+          });
         }
       };
 
