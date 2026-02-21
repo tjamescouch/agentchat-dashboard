@@ -3,6 +3,34 @@ import DOMPurify from 'dompurify';
 
 marked.setOptions({ breaks: false });
 
+// Redact strings that look like API keys, tokens, or passwords
+const SECRET_PATTERNS: [RegExp, string][] = [
+  // Anthropic keys
+  [/\bsk-ant-[A-Za-z0-9_-]{20,}\b/g, '\u{1F512} [anthropic-key-redacted]'],
+  // OpenAI keys
+  [/\bsk-[A-Za-z0-9]{20,}\b/g, '\u{1F512} [openai-key-redacted]'],
+  // GitHub tokens
+  [/\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b/g, '\u{1F512} [github-token-redacted]'],
+  // AWS keys
+  [/\bAKIA[A-Z0-9]{16}\b/g, '\u{1F512} [aws-key-redacted]'],
+  // Generic bearer tokens (long base64-ish strings after "Bearer")
+  [/\bBearer\s+[A-Za-z0-9_-]{30,}\b/g, '\u{1F512} [bearer-token-redacted]'],
+  // Generic long hex secrets (64+ chars, likely SHA/HMAC)
+  [/\b[0-9a-f]{64,}\b/gi, '\u{1F512} [secret-redacted]'],
+  // Slack tokens
+  [/\bxox[bpsar]-[A-Za-z0-9-]{20,}\b/g, '\u{1F512} [slack-token-redacted]'],
+  // npm tokens
+  [/\bnpm_[A-Za-z0-9]{20,}\b/g, '\u{1F512} [npm-token-redacted]'],
+];
+
+export function redactSecrets(text: string): string {
+  let result = text;
+  for (const [pattern, replacement] of SECRET_PATTERNS) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
 export function renderMarkdown(content: string): string {
   const raw = marked.parse(content);
   const html = typeof raw === 'string' ? raw : '';

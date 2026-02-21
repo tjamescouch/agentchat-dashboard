@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, FormEvent } from 'react';
 import type { DashboardState, DashboardAction, WsSendFn } from '../types';
-import { renderMarkdown, agentColor, formatTime, formatSize, truncateAtWord } from '../utils';
+import { renderMarkdown, redactSecrets, agentColor, formatTime, formatSize, truncateAtWord } from '../utils';
 import { FileOfferBanner, TransferBar } from './FileTransfer';
 
 const MSG_TRUNCATE_LENGTH = 500;
@@ -21,7 +21,7 @@ function MessageContent({ content, searchQuery }: { content: string; searchQuery
   const displayText = needsTruncation && !expanded
     ? truncateAtWord(content, MSG_TRUNCATE_LENGTH) + '...'
     : content;
-  let html = renderMarkdown(displayText);
+  let html = renderMarkdown(redactSecrets(displayText));
   if (searchQuery) {
     html = highlightHtml(html, searchQuery);
   }
