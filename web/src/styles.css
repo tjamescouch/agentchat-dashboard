@@ -7,17 +7,18 @@
 }
 
 :root {
-  --bg-primary: #1e1e1e;
-  --bg-secondary: #252526;
-  --bg-tertiary: #2d2d30;
-  --text-primary: #d4d4d4;
-  --text-secondary: #9cdcfe;
-  --text-muted: #808080;
-  --accent-blue: #4fc1ff;
-  --accent-yellow: #dcdcaa;
-  --accent-red: #f44747;
-  --accent-green: #4ec9b0;
-  --border: #3e3e42;
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #222222;
+  --bg-tertiary: #2a2a2a;
+  --text-primary: #cccccc;
+  --text-secondary: #8ab4f8;
+  --text-muted: #999999;
+  --accent-blue: #5f9ea0;
+  --accent-yellow: #b8a047;
+  --accent-red: #c05050;
+  --accent-green: #5a9;
+  --border: #333333;
+}
 }
 
 body {
@@ -2872,93 +2873,8 @@ button, .list-item, .channel-tag, .mode-btn, .logs-btn, .pulse-btn {
   gap: 16px;
 }
 
-/* Very subtle scanline hint — barely visible */
-.crt-overlay {
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: 99998;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 4px,
-    rgba(0, 0, 0, 0.008) 4px,
-    rgba(0, 0, 0, 0.008) 8px
-  );
-}
 
 /* ============ Boot Sequence ============ */
-
-.boot-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100000;
-  background: #1e1e1e;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 80px;
-  font-family: 'Segoe UI', -apple-system, sans-serif;
-  overflow: hidden;
-}
-
-.boot-overlay.fade-out {
-  animation: boot-fade 0.8s ease-out forwards;
-}
-
-@keyframes boot-fade {
-  0% { opacity: 1; }
-  100% { opacity: 0; pointer-events: none; }
-}
-
-.boot-line {
-  font-size: 13px;
-  line-height: 1.8;
-  color: var(--text-primary);
-  opacity: 0;
-  animation: boot-type 0.05s ease-out forwards;
-  white-space: pre;
-}
-
-.boot-line.dim {
-  color: var(--text-muted);
-}
-
-.boot-line.ok {
-  color: var(--accent-green);
-}
-
-.boot-line.warn {
-  color: var(--accent-yellow);
-}
-
-.boot-line.error {
-  color: var(--accent-red);
-}
-
-@keyframes boot-type {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
-
-.boot-cursor {
-  display: inline-block;
-  width: 8px;
-  height: 14px;
-  background: var(--accent-blue);
-  animation: blink-cursor 1s step-end infinite;
-  vertical-align: text-bottom;
-  margin-left: 2px;
-}
-
-@keyframes blink-cursor {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
-}
-
-/* ============ Agent Control Modal ============ */
-
 .agent-control-overlay {
   background: rgba(0, 0, 0, 0.85);
 }
@@ -3519,4 +3435,48 @@ button, .list-item, .channel-tag, .mode-btn, .logs-btn, .pulse-btn {
 
 .usage-model-row .model-tokens {
   color: var(--text-primary);
+}
+
+/* ============ Network Pulse Map ============ */
+
+.network-pulse-map {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary);
+}
+
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.map-header h3 {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.map-header button {
+  padding: 6px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.map-header button:hover {
+  background: var(--border);
+}
+
+.map-container {
+  flex: 1;
+  position: relative;
+  background: #0a0a0a;
 }
