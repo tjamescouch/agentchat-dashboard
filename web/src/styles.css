@@ -3436,3 +3436,47 @@ button, .list-item, .channel-tag, .mode-btn, .logs-btn, .pulse-btn {
 .usage-model-row .model-tokens {
   color: var(--text-primary);
 }
+
+/* ============ Network Pulse Map ============ */
+
+.network-pulse-map {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary);
+}
+
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.map-header h3 {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.map-header button {
+  padding: 6px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.map-header button:hover {
+  background: var(--border);
+}
+
+.map-container {
+  flex: 1;
+  position: relative;
+  background: #0a0a0a;
+}
