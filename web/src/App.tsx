@@ -6,7 +6,7 @@ import { SpendGraphs } from './components/SpendGraphs';
 
 // ============ Markdown ============
 
-marked.setOptions({ breaks: false });
+marked.setOptions({ breaks: true });
 
 function renderMarkdown(content: string): string {
   const raw = marked.parse(content);
